@@ -1,0 +1,61 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Your Optimized Supabase SQL Workflow in Cursor
+🔁 Step-by-Step Process
+1. Track & Document Schema in sql_commands.md
+Maintain full details of:
+
+Tables (structure, constraints, relationships)
+
+Functions & Triggers
+
+Indexes
+
+Policies
+
+Format: Clean markdown with SQL blocks + explanations
+
+Purpose: Acts as the single source of truth for schema evolution
+
+2. Live Sync to Supabase
+Every schema change (new table, function, update) must:
+
+Be written as clean SQL
+
+Be pushed to Supabase SQL Editor or via CLI/WSL
+
+➡ Push to Supabase
+✅ Update sql_commands.md with this command and a note
+
+3. Always Reference sql_commands.md First
+Before writing new commands:
+
+Open sql_commands.md
+
+See what already exists
+
+Avoid conflicts or duplicates
+
+Also helps when debugging frontend/backend sync issues
+
+4. Optimize Schema Based on Workflow
+Use proper indexes, constraints, and relationships
+
+Add updated_at triggers
+
+Enable row-level security (RLS) where needed
+
+
+5. Keep the Workflow Clean & Synchronized
+No changes go live unless:
+
+They are committed to sql_commands.md
+
+They are confirmed working in Supabase
+
+Consistent naming, timestamps, and audit trails
+
+

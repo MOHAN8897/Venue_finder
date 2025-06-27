@@ -13,7 +13,7 @@ export interface UserProfile {
   city?: string;
   state?: string;
   country?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
   notification_settings?: {
     email_notifications: boolean;
     sms_notifications: boolean;
@@ -79,20 +79,39 @@ export interface UserBooking {
 
 // User Profile Management
 export const userService = {
-  // Get current user profile with stats
+  // Get current user profile
   async getCurrentUserProfile(): Promise<UserProfile | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
+      const { data, error } = await supabase.rpc('get_user_profile', {});
       if (error) throw error;
-      return data;
+      // If data is null, undefined, or an empty object, treat as no profile
+      if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+        return null;
+      }
+      // Defensive: ensure required fields exist
+      return {
+        id: data.id || data.user_id || '',
+        email: data.email || '',
+        full_name: data.full_name || data.name || '',
+        phone: (data.phone || '').replace(/\D/g, ''),
+        avatar_url: data.avatar_url || '',
+        date_of_birth: data.date_of_birth || '',
+        gender: data.gender || 'prefer_not_to_say',
+        address: data.address || '',
+        city: data.city || '',
+        state: data.state || '',
+        country: data.country || '',
+        preferences: data.preferences || {},
+        notification_settings: data.notification_settings || {
+          email_notifications: true,
+          sms_notifications: false,
+          marketing_emails: true,
+          booking_reminders: true,
+          new_venue_alerts: true
+        },
+        created_at: data.created_at || '',
+        updated_at: data.updated_at || ''
+      };
     } catch (error) {
       console.error('Error fetching user profile:', error);
       return null;
@@ -105,10 +124,35 @@ export const userService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
+      // Normalize date_of_birth
+      const updateData = { ...updates };
+      if ('date_of_birth' in updateData) {
+        if (!updateData.date_of_birth || updateData.date_of_birth === '' || !/^\d{4}-\d{2}-\d{2}$/.test(updateData.date_of_birth)) {
+          updateData.date_of_birth = undefined;
+        }
+      }
+      // Normalize phone
+      if ('phone' in updateData && typeof updateData.phone === 'string') {
+        updateData.phone = updateData.phone.replace(/\D/g, '').trim();
+      }
+      // Always include notification_settings and preferences if present
+      if ('notification_settings' in updateData && !updateData.notification_settings) {
+        updateData.notification_settings = {
+          email_notifications: true,
+          sms_notifications: false,
+          marketing_emails: true,
+          booking_reminders: true,
+          new_venue_alerts: true
+        };
+      }
+      if ('preferences' in updateData && !updateData.preferences) {
+        updateData.preferences = {};
+      }
+
       const { error } = await supabase
-        .from('user_profiles')
-        .update(updates)
-        .eq('id', user.id);
+        .from('profiles')
+        .update(updateData)
+        .eq('user_id', user.id);
 
       if (error) throw error;
       return { success: true };
@@ -139,7 +183,7 @@ export const userService = {
       await this.updateUserProfile({ avatar_url: publicUrl });
 
       return { success: true, url: publicUrl };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error uploading avatar:', error);
       return { success: false, error: (error as Error).message };
     }
@@ -152,32 +196,32 @@ export const userService = {
       if (!user) throw new Error('No authenticated user');
 
       const { error } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .update({ notification_settings: settings })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
       return { success: true };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating notification settings:', error);
       return { success: false, error: (error as Error).message };
     }
   },
 
   // Update user preferences
-  async updateUserPreferences(preferences: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+  async updateUserPreferences(preferences: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
       const { error } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .update({ preferences })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
       return { success: true };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating user preferences:', error);
       return { success: false, error: (error as Error).message };
     }
@@ -189,29 +233,9 @@ export const favoritesService = {
   // Get user favorites
   async getUserFavorites(): Promise<UserFavorite[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('user_favorites')
-        .select(`
-          *,
-          venue:venues(
-            id,
-            name,
-            description,
-            address,
-            city,
-            image_urls,
-            rating,
-            hourly_rate
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_user_favorites', {});
       if (error) throw error;
-      return data || [];
+      return data as UserFavorite[] || [];
     } catch (error) {
       console.error('Error fetching user favorites:', error);
       return [];
@@ -401,25 +425,9 @@ export const bookingsService = {
   // Get user bookings
   async getUserBookings(): Promise<UserBooking[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          venue:venues(
-            id,
-            name,
-            address,
-            image_urls
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_user_bookings', {});
       if (error) throw error;
-      return data || [];
+      return data as UserBooking[] || [];
     } catch (error) {
       console.error('Error fetching user bookings:', error);
       return [];
@@ -500,53 +508,24 @@ export const bookingsService = {
 // Venue Management (for venue owners)
 export const venueOwnerService = {
   // Get user's venues
-  async getUserVenues(): Promise<any[]> {
+  async getUserVenues(): Promise<unknown[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('venues')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_user_venues', {});
       if (error) throw error;
-      return data || [];
-    } catch (error) {
+      return data as unknown[];
+    } catch (error: unknown) {
       console.error('Error fetching user venues:', error);
       return [];
     }
   },
 
   // Get bookings for user's venues
-  async getVenueBookings(): Promise<any[]> {
+  async getVenueBookings(): Promise<unknown[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          venue:venues!inner(
-            id,
-            name,
-            owner_id
-          ),
-          user:user_profiles(
-            id,
-            full_name,
-            email,
-            phone
-          )
-        `)
-        .eq('venue.owner_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_venue_bookings', {});
       if (error) throw error;
-      return data || [];
-    } catch (error) {
+      return data as unknown[];
+    } catch (error: unknown) {
       console.error('Error fetching venue bookings:', error);
       return [];
     }

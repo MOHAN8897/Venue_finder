@@ -50,6 +50,7 @@ export interface Venue {
   verified: boolean;
   createdAt: Date;
   updatedAt: Date;
+  google_maps_embed_code?: string;
 }
 
 export interface VenueSlot {

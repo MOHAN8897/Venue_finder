@@ -81,9 +81,9 @@ export const userProfile = {
   // Create or update user profile
   upsertProfile: async (userId: string, profile: Partial<UserProfile>) => {
     const { data, error } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .upsert({
-        id: userId,
+        user_id: userId,
         ...profile,
         updated_at: new Date().toISOString()
       });
@@ -93,9 +93,9 @@ export const userProfile = {
   // Get user profile
   getProfile: async (userId: string) => {
     const { data, error } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .single();
     return { data, error };
   },
@@ -103,12 +103,12 @@ export const userProfile = {
   // Update user profile
   updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
     const { data, error } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .update({
         ...updates,
         updated_at: new Date().toISOString()
       })
-      .eq('id', userId);
+      .eq('user_id', userId);
     return { data, error };
   }
 };

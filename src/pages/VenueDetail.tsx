@@ -36,7 +36,8 @@ const VenueDetail: React.FC = () => {
     rating: 4.5,
     reviewCount: 50,
     verified: true,
-    availability: [] as Array<{id: string, date: string, available: boolean, price: number}>
+    availability: [] as Array<{id: string, date: string, available: boolean, price: number}>,
+    google_maps_embed_code: '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3505.3744747474747!2d77.0266!3d28.4595!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d1a4e5d335d33%3A0x390d1a4e5d335d33!2sSample%20Address%2C%20Sample%20City%2C%20Sample%20State%20123456!5e0!3m2!1sen!2sin!4v1630454400000!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy"></iframe>'
   };
 
   const nextImage = () => {
@@ -214,6 +215,20 @@ const VenueDetail: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Map Embed Section */}
+            {venue.google_maps_embed_code && (
+              <div id="venue-map-embed" className="bg-white rounded-2xl p-8 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Location Map</h3>
+                <div className="w-full overflow-x-auto">
+                  <div
+                    className="venue-map-iframe-wrapper"
+                    style={{ maxWidth: '100%', minHeight: 300 }}
+                    dangerouslySetInnerHTML={{ __html: venue.google_maps_embed_code }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Booking Section */}
             <div id="booking-section" className="bg-white rounded-2xl p-8 shadow-sm">

@@ -1,20 +1,57 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, MapPin, User, LogOut, LayoutDashboard } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, MapPin, User, LogOut, LayoutDashboard, Heart, Calendar, Settings, ChevronDown, Building2 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const [hasVenueSubmission, setHasVenueSubmission] = useState(false);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkVenueSubmission = async () => {
+      if (user) {
+        // Query Supabase for a venue submission by this user
+        const { data, error } = await supabase
+          .from('venues')
+          .select('venue_id')
+          .eq('owner_id', user.id)
+          .maybeSingle();
+        setHasVenueSubmission(!!data && !error);
+      } else {
+        setHasVenueSubmission(false);
+      }
+    };
+    checkVenueSubmission();
+  }, [user]);
 
   const handleSignOut = async () => {
     try {
       await signOut();
       setIsProfileMenuOpen(false);
-    } catch (error) {
-      console.error('Sign out error:', error);
+      navigate('/');
+    } catch {
+      setIsProfileMenuOpen(false);
+      navigate('/');
     }
   };
 
@@ -63,48 +100,100 @@ const Header: React.FC = () => {
 
           {/* Auth Section */}
           <div id="auth-container" className="hidden md:flex items-center space-x-4">
-            {user ? (
-              <div className="relative">
+            {authLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+            ) : user ? (
+              <div className="relative" ref={profileMenuRef}>
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors"
+                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg"
                 >
                   {user.avatar_url ? (
                     <img
                       src={user.avatar_url}
-                      alt={user.full_name || user.email}
-                      className="w-8 h-8 rounded-full"
+                      alt={user.full_name || user.email || 'User'}
+                      className="w-8 h-8 rounded-full object-cover"
                     />
+                  ) : user.email ? (
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                      {user.email[0].toUpperCase()}
+                    </div>
                   ) : (
                     <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                       <User className="h-4 w-4 text-white" />
                     </div>
                   )}
-                  <span className="font-medium">{user.full_name || user.email}</span>
+                  <span className="font-medium">{user.full_name || user.email || 'User'}</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Profile Dropdown */}
+                {/* Enhanced Profile Dropdown */}
                 {isProfileMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                    <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200">
-                      <div className="font-medium">{user.full_name || 'User'}</div>
-                      <div className="text-gray-500">{user.email}</div>
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-200">
+                    <div className="px-4 py-3 text-sm border-b border-gray-100">
+                      <div className="font-semibold text-gray-900 text-base">{user.full_name || user.email || 'User'}</div>
+                      <div className="text-gray-600 text-sm mt-1 break-all">{user.email || ''}</div>
                     </div>
-                    <Link
-                      to="/dashboard"
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                      onClick={() => setIsProfileMenuOpen(false)}
-                    >
-                      <LayoutDashboard className="h-4 w-4" />
-                      <span>Dashboard</span>
-                    </Link>
-                    <button
-                      onClick={handleSignOut}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>Sign out</span>
-                    </button>
+                    
+                    <div className="py-2">
+                      <Link
+                        to="/dashboard"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                        <span className="font-medium">Dashboard</span>
+                      </Link>
+                      
+                      {/* Show Manage Venues for owners */}
+                      {hasVenueSubmission && (
+                        <Link
+                          to="/manage-venues"
+                          className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <Building2 className="h-5 w-5 text-green-500" />
+                          <span className="font-medium">Manage Venues</span>
+                        </Link>
+                      )}
+                      
+                      <Link
+                        to="/favorites"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <Heart className="h-5 w-5 text-red-500" />
+                        <span className="font-medium">My Favorites</span>
+                      </Link>
+                      
+                      <Link
+                        to="/bookings"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <Calendar className="h-5 w-5 text-green-500" />
+                        <span className="font-medium">My Bookings</span>
+                      </Link>
+                      
+                      <Link
+                        to="/settings"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <Settings className="h-5 w-5 text-gray-500" />
+                        <span className="font-medium">Settings</span>
+                      </Link>
+                    </div>
+                    
+                    <div className="border-t border-gray-100 pt-2">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 flex items-center space-x-3 transition-colors"
+                      >
+                        <LogOut className="h-5 w-5 text-red-500" />
+                        <span className="font-medium">Sign out</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -161,13 +250,17 @@ const Header: React.FC = () => {
               <div id="mobile-auth-container" className="pt-4 border-t border-gray-200">
                 {user ? (
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 mb-4">
                       {user.avatar_url ? (
                         <img
                           src={user.avatar_url}
-                          alt={user.full_name || user.email}
-                          className="w-8 h-8 rounded-full"
+                          alt={user.full_name || user.email || 'User'}
+                          className="w-8 h-8 rounded-full object-cover"
                         />
+                      ) : user.email ? (
+                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                          {user.email[0].toUpperCase()}
+                        </div>
                       ) : (
                         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                           <User className="h-4 w-4 text-white" />
@@ -175,32 +268,70 @@ const Header: React.FC = () => {
                       )}
                       <div>
                         <div className="font-medium text-gray-900">{user.full_name || 'User'}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-sm text-gray-500">{user.email || ''}</div>
                       </div>
                     </div>
+                    
                     <Link
                       to="/dashboard"
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2 rounded"
+                      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <LayoutDashboard className="h-4 w-4" />
-                      <span>Dashboard</span>
+                      <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                      <span className="font-medium">Dashboard</span>
                     </Link>
-                    <button
-                      onClick={() => {
-                        handleSignOut();
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2 rounded"
+                    
+                    {/* Show Manage Venues for owners in mobile menu */}
+                    {hasVenueSubmission && (
+                      <Link
+                        to="/manage-venues"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <Building2 className="h-5 w-5 text-green-500" />
+                        <span className="font-medium">Manage Venues</span>
+                      </Link>
+                    )}
+                    
+                    <Link
+                      to="/favorites"
+                      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
+                      onClick={() => setIsMenuOpen(false)}
                     >
-                      <LogOut className="h-4 w-4" />
-                      <span>Sign out</span>
+                      <Heart className="h-5 w-5 text-red-500" />
+                      <span className="font-medium">My Favorites</span>
+                    </Link>
+                    
+                    <Link
+                      to="/bookings"
+                      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Calendar className="h-5 w-5 text-green-500" />
+                      <span className="font-medium">My Bookings</span>
+                    </Link>
+                    
+                    <Link
+                      to="/settings"
+                      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Settings className="h-5 w-5 text-gray-500" />
+                      <span className="font-medium">Settings</span>
+                    </Link>
+                    
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 flex items-center space-x-3 transition-colors rounded-lg"
+                    >
+                      <LogOut className="h-5 w-5 text-red-500" />
+                      <span className="font-medium">Sign out</span>
                     </button>
                   </div>
                 ) : (
                   <Link
                     to="/signin"
-                    className="block w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium block text-center"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Sign In

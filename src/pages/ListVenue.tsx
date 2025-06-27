@@ -123,6 +123,7 @@ interface FormData {
   contactEmail: string;
   images: File[];
   videos: File[];
+  googleMapsLink: string;
 }
 
 const initialFormData: FormData = {
@@ -144,7 +145,8 @@ const initialFormData: FormData = {
     contactPhone: '',
     contactEmail: '',
   images: [],
-  videos: []
+  videos: [],
+  googleMapsLink: '',
 };
 
 const ListVenue: React.FC = () => {
@@ -174,6 +176,7 @@ const ListVenue: React.FC = () => {
         if (!formData.state.trim()) newErrors.state = 'State is required';
         if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
         if (!/^\d{6}$/.test(formData.pincode)) newErrors.pincode = 'Pincode must be 6 digits';
+        if (!formData.googleMapsLink.trim()) newErrors.googleMapsLink = 'Google Maps Link is required';
         break;
       
       case 3:
@@ -329,6 +332,12 @@ const ListVenue: React.FC = () => {
     
     setLoading(true);
     try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
+      }
+
       // Upload images and videos to Supabase storage
       const imageUrls = await uploadFilesToSupabase(formData.images, 'venue-images');
       const videoUrls = await uploadFilesToSupabase(formData.videos, 'venue-videos');
@@ -353,7 +362,11 @@ const ListVenue: React.FC = () => {
         contact_email: formData.contactEmail,
         images: imageUrls,
         videos: videoUrls,
-        status: 'pending'
+        status: 'pending',
+        approval_status: 'pending',
+        submitted_by: user.id,
+        submission_date: new Date().toISOString(),
+        google_maps_link: formData.googleMapsLink
       }]);
 
       if (error) throw error;
@@ -497,6 +510,24 @@ const ListVenue: React.FC = () => {
                   placeholder="Street address, building name, etc."
                 />
                 {errors.address && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="h-4 w-4 mr-1" />{errors.address}</p>}
+                </div>
+
+                {/* Google Maps Link Field */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Paste your Google Maps Link <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.googleMapsLink}
+                    onChange={(e) => handleInputChange('googleMapsLink', e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors.googleMapsLink ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="https://maps.google.com/..."
+                    required
+                  />
+                  {errors.googleMapsLink && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="h-4 w-4 mr-1" />{errors.googleMapsLink}</p>}
                 </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
