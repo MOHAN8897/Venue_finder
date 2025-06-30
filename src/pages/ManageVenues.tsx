@@ -1,101 +1,114 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Typography, CircularProgress } from '@mui/material';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { venueService, Venue } from '../lib/venueService';
+import { Link } from 'react-router-dom';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { Loader2, AlertCircle, Edit, PlusCircle } from 'lucide-react';
+import VenueVisibilityControl from '../components/VenueVisibilityControl';
+import { toast } from 'sonner';
+import { DateRange } from 'react-day-picker';
 
-interface Venue {
-  venue_id: string;
-  venue_name: string;
-  status: 'approved' | 'rejected' | 'pending';
-  rejection_reason?: string;
-}
 
 const ManageVenues: React.FC = () => {
-  const { user } = useAuth();
-  const [venue, setVenue] = useState<Venue | null>(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+    const { user } = useAuth();
+    const [venues, setVenues] = useState<Venue[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchVenue = async () => {
-      if (!user) {
-        navigate('/signin');
-        return;
-      }
-      // Fetch the user's venue submission (mocked for now)
-      const { data, error } = await supabase
-        .from('venues')
-        .select('venue_id, venue_name, status, rejection_reason')
-        .eq('owner_id', user.id)
-        .single();
-      if (error || !data) {
-        // No venue submission found, redirect
-        navigate('/unauthorized');
-        return;
-      }
-      setVenue(data);
-      setLoading(false);
+    useEffect(() => {
+        const loadVenues = async () => {
+            if (!user) {
+                setError("You must be logged in to manage venues.");
+                setLoading(false);
+                return;
+            }
+            try {
+                setLoading(true);
+                const ownerVenues = await venueService.getVenuesForOwner(user.id);
+                setVenues(ownerVenues);
+            } catch (err: unknown) {
+                setError("Failed to fetch venues. Please try again later.");
+                if (err instanceof Error) {
+                    console.error(err.message);
+                } else {
+                    console.error("An unexpected error occurred:", err);
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadVenues();
+    }, [user]);
+
+    const handleVisibilityChange = async (venueId: string, isPublished: boolean) => {
+        toast.info(`Updating visibility for venue ${venueId} to ${isPublished ? 'Published' : 'Unpublished'}.`);
+        setVenues(prev => prev.map(v => v.id === venueId ? {...v, is_published: isPublished} : v));
     };
-    fetchVenue();
-  }, [user, navigate]);
+    
+    const handleUnavailabilityChange = async (venueId: string, dates: DateRange) => {
+        if (!dates.from) {
+            toast.error("A valid start date is required.");
+            return;
+        }
+        const toDate = dates.to ? dates.to.toDateString() : 'open-ended';
+        toast.info(`Setting unavailability for venue ${venueId} from ${dates.from.toDateString()} to ${toDate}.`);
+    };
 
-  if (loading) {
+    if (loading) {
+        return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 text-red-600">
+                <AlertCircle className="h-8 w-8 mb-2" />
+                <p>{error}</p>
+            </div>
+        );
+    }
+
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <CircularProgress />
-      </Box>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold">Manage Your Venues</h1>
+                <Button asChild>
+                    <Link to="/list-venue"><PlusCircle className="mr-2 h-4 w-4" /> List a New Venue</Link>
+                </Button>
+            </div>
+
+            {venues.length === 0 ? (
+                <div className="text-center py-12 px-6 bg-gray-50 rounded-lg">
+                    <h3 className="text-xl font-medium text-gray-900">No venues found</h3>
+                    <p className="mt-1 text-sm text-gray-500">Get started by listing your first venue.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {venues.map(venue => (
+                        <Card key={venue.id}>
+                            <CardHeader>
+                                <CardTitle>{venue.name}</CardTitle>
+                                <CardDescription>{venue.type}</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <VenueVisibilityControl
+                                    venue={venue}
+                                    onVisibilityChange={handleVisibilityChange}
+                                    onUnavailabilityChange={handleUnavailabilityChange}
+                                />
+                            </CardContent>
+                            <CardFooter>
+                                <Button asChild variant="outline" className="w-full">
+                                    <Link to={`/edit-venue/${venue.id}`}><Edit className="mr-2 h-4 w-4" /> Edit Venue</Link>
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </div>
     );
-  }
-
-  if (!venue) {
-    // Should not reach here due to redirect, but fallback
-    return null;
-  }
-
-  return (
-    <Box maxWidth={600} mx="auto" mt={6}>
-      <Card>
-        <CardContent>
-          <Typography variant="h5" gutterBottom>
-            Manage Your Venue
-          </Typography>
-          <Typography variant="subtitle1" gutterBottom>
-            Venue: {venue.venue_name}
-          </Typography>
-          {venue.status === 'approved' && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              Your venue has been <b>approved</b>. You now have full access to manage your venue.
-            </Alert>
-          )}
-          {venue.status === 'rejected' && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Unfortunately, your venue submission was <b>rejected</b>.<br />
-              {venue.rejection_reason && (
-                <span>
-                  <b>Reason:</b> {venue.rejection_reason}
-                </span>
-              )}
-              <br />Please review the feedback and consider resubmitting.
-            </Alert>
-          )}
-          {venue.status === 'pending' && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Your venue is currently <b>under review</b>. You will be notified once a decision is made.
-            </Alert>
-          )}
-          {venue.status === 'approved' && (
-            <Box mt={2}>
-              {/* Placeholder for management features */}
-              <Button variant="contained" color="primary">
-                Edit Venue Details
-              </Button>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    </Box>
-  );
 };
 
 export default ManageVenues; 

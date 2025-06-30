@@ -17,6 +17,7 @@ export interface Venue {
   area: string;
   dimensions?: string;
   hourly_rate: number;
+  daily_rate?: number;
   price_per_hour?: number;
   price_per_day?: number;
   currency: string;
@@ -39,6 +40,7 @@ export interface Venue {
   owner_name?: string;
   google_maps_link?: string;
   google_maps_embed_code?: string;
+  is_published: boolean;
 }
 
 interface VenueWithOwner extends Venue {
@@ -57,6 +59,8 @@ export interface VenueFilters {
   capacity?: number;
   amenities?: string[];
 }
+
+export type VenueUpdateData = Record<string, never>;
 
 export const venueService = {
   // Get featured venues for homepage
@@ -266,7 +270,9 @@ export const venueService = {
         throw error;
       }
 
-      return data?.map((item: { venue: VenueWithOwner }) => ({
+      const favorites = data as unknown as { venue: VenueWithOwner }[] | null;
+
+      return favorites?.map((item) => ({
         ...item.venue,
         owner_email: item.venue.owner?.email,
         owner_name: item.venue.owner?.full_name
@@ -364,23 +370,20 @@ export const venueService = {
   },
 
   // Update venue
-  updateVenue: async (id: string, updates: Partial<Venue>): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('venues')
-        .update(updates)
-        .eq('id', id);
+  async updateVenue(venueId: string, updatedData: Partial<Venue>): Promise<Venue | null> {
+    const { data, error } = await supabase
+      .from('venues')
+      .update(updatedData)
+      .eq('id', venueId)
+      .select('*')
+      .single();
 
-      if (error) {
-        console.error('Error updating venue:', error);
-        throw error;
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error in updateVenue:', error);
-      return false;
+    if (error) {
+      console.error('Error updating venue:', error);
+      throw error;
     }
+
+    return data as Venue | null;
   },
 
   // Delete venue
@@ -401,5 +404,25 @@ export const venueService = {
       console.error('Error in deleteVenue:', error);
       return false;
     }
+  },
+
+  async getVenuesForOwner(ownerId: string): Promise<Venue[]> {
+    const { data, error } = await supabase
+      .from('venues')
+      .select(`
+        *,
+        owner:profiles(full_name)
+      `)
+      .eq('owner_id', ownerId);
+
+    if (error) {
+      console.error('Error fetching venues for owner:', error);
+      throw error;
+    }
+
+    // For now, we cast to any to bypass the strict type check.
+    // This is part of the "frontend-first" approach where we will adjust backend/types later.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data as any as Venue[];
   }
 }; 

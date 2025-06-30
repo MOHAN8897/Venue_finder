@@ -202,7 +202,7 @@ export const userService = {
 
       if (error) throw error;
       return { success: true };
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Error updating notification settings:', error);
       return { success: false, error: (error as Error).message };
     }
@@ -221,7 +221,7 @@ export const userService = {
 
       if (error) throw error;
       return { success: true };
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Error updating user preferences:', error);
       return { success: false, error: (error as Error).message };
     }
@@ -556,7 +556,24 @@ export const dashboardService = {
         };
       }
 
-      // Get counts
+      // Try to use the RPC function first
+      try {
+        const { data: statsData, error: statsError } = await supabase.rpc('get_user_dashboard_stats', {});
+        if (!statsError && statsData) {
+          return {
+            totalBookings: statsData.totalBookings || 0,
+            totalFavorites: statsData.totalFavorites || 0,
+            totalReviews: statsData.totalReviews || 0,
+            totalVenues: statsData.totalVenues || 0,
+            recentBookings: statsData.recentBookings || [],
+            recentFavorites: statsData.recentFavorites || []
+          };
+        }
+      } catch (rpcError) {
+        console.warn('RPC function not available, falling back to direct queries:', rpcError);
+      }
+
+      // Fallback to direct queries if RPC function is not available
       const [bookingsCount, favoritesCount, reviewsCount, venuesCount] = await Promise.all([
         supabase.from('bookings').select('id', { count: 'exact' }).eq('user_id', user.id),
         supabase.from('user_favorites').select('id', { count: 'exact' }).eq('user_id', user.id),

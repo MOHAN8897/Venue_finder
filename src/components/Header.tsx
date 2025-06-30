@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, MapPin, User, LogOut, LayoutDashboard, Heart, Calendar, Settings, ChevronDown, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import NotificationPanel from './NotificationPanel';
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -33,7 +34,7 @@ const Header: React.FC = () => {
         // Query Supabase for a venue submission by this user
         const { data, error } = await supabase
           .from('venues')
-          .select('venue_id')
+          .select('id')
           .eq('owner_id', user.id)
           .maybeSingle();
         setHasVenueSubmission(!!data && !error);
@@ -89,13 +90,6 @@ const Header: React.FC = () => {
             >
               Browse Venues
             </Link>
-            <Link 
-              id="nav-list-venue"
-              to="/list-venue" 
-              className="text-gray-700 hover:text-blue-600 font-medium transition-colors"
-            >
-              List Your Venue
-            </Link>
           </nav>
 
           {/* Auth Section */}
@@ -103,100 +97,113 @@ const Header: React.FC = () => {
             {authLoading ? (
               <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
             ) : user ? (
-              <div className="relative" ref={profileMenuRef}>
-                <button
-                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg"
-                >
-                  {user.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.full_name || user.email || 'User'}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : user.email ? (
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                      {user.email[0].toUpperCase()}
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-white" />
-                    </div>
-                  )}
-                  <span className="font-medium">{user.full_name || user.email || 'User'}</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
+              <>
+                <NotificationPanel />
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg"
+                  >
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user.full_name || user.email || 'User'}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : user.email ? (
+                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {user.email[0].toUpperCase()}
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                    <span className="font-medium">{user.full_name || user.email || 'User'}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-                {/* Enhanced Profile Dropdown */}
-                {isProfileMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-200">
-                    <div className="px-4 py-3 text-sm border-b border-gray-100">
-                      <div className="font-semibold text-gray-900 text-base">{user.full_name || user.email || 'User'}</div>
-                      <div className="text-gray-600 text-sm mt-1 break-all">{user.email || ''}</div>
-                    </div>
-                    
-                    <div className="py-2">
-                      <Link
-                        to="/dashboard"
-                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                      >
-                        <LayoutDashboard className="h-5 w-5 text-blue-500" />
-                        <span className="font-medium">Dashboard</span>
-                      </Link>
+                  {/* Enhanced Profile Dropdown */}
+                  {isProfileMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-200">
+                      <div className="px-4 py-3 text-sm border-b border-gray-100">
+                        <div className="font-semibold text-gray-900 text-base">{user.full_name || user.email || 'User'}</div>
+                        <div className="text-gray-600 text-sm mt-1 break-all">{user.email || ''}</div>
+                      </div>
                       
-                      {/* Show Manage Venues for owners */}
-                      {hasVenueSubmission && (
+                      <div className="py-2">
                         <Link
-                          to="/manage-venues"
+                          to="/dashboard"
                           className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
                           onClick={() => setIsProfileMenuOpen(false)}
                         >
-                          <Building2 className="h-5 w-5 text-green-500" />
-                          <span className="font-medium">Manage Venues</span>
+                          <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                          <span className="font-medium">Dashboard</span>
                         </Link>
-                      )}
+                        
+                        {/* Show Manage Venues for owners */}
+                        {hasVenueSubmission && (
+                          <Link
+                            to="/manage-venues"
+                            className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                            onClick={() => setIsProfileMenuOpen(false)}
+                          >
+                            <Building2 className="h-5 w-5 text-green-500" />
+                            <span className="font-medium">Manage Venues</span>
+                          </Link>
+                        )}
+                        
+                        <Link
+                          to="/favorites"
+                          className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <Heart className="h-5 w-5 text-red-500" />
+                          <span className="font-medium">My Favorites</span>
+                        </Link>
+                        
+                        <Link
+                          to="/bookings"
+                          className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <Calendar className="h-5 w-5 text-green-500" />
+                          <span className="font-medium">My Bookings</span>
+                        </Link>
+                        
+                        {/* List Your Venue - always show for signed-in users, above Settings */}
+                        <Link
+                          to="/list-venue"
+                          className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <MapPin className="h-5 w-5 text-blue-500" />
+                          <span className="font-medium">List Your Venue</span>
+                        </Link>
+                        
+                        <Link
+                          to="/settings"
+                          className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <Settings className="h-5 w-5 text-gray-500" />
+                          <span className="font-medium">Settings</span>
+                        </Link>
+                      </div>
                       
-                      <Link
-                        to="/favorites"
-                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                      >
-                        <Heart className="h-5 w-5 text-red-500" />
-                        <span className="font-medium">My Favorites</span>
-                      </Link>
-                      
-                      <Link
-                        to="/bookings"
-                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                      >
-                        <Calendar className="h-5 w-5 text-green-500" />
-                        <span className="font-medium">My Bookings</span>
-                      </Link>
-                      
-                      <Link
-                        to="/settings"
-                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                      >
-                        <Settings className="h-5 w-5 text-gray-500" />
-                        <span className="font-medium">Settings</span>
-                      </Link>
+                      <div className="border-t border-gray-100 pt-2">
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 flex items-center space-x-3 transition-colors"
+                        >
+                          <LogOut className="h-5 w-5 text-red-500" />
+                          <span className="font-medium">Sign out</span>
+                        </button>
+                      </div>
                     </div>
-                    
-                    <div className="border-t border-gray-100 pt-2">
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 flex items-center space-x-3 transition-colors"
-                      >
-                        <LogOut className="h-5 w-5 text-red-500" />
-                        <span className="font-medium">Sign out</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </>
             ) : (
               <Link
                 to="/signin"
@@ -309,6 +316,15 @@ const Header: React.FC = () => {
                     >
                       <Calendar className="h-5 w-5 text-green-500" />
                       <span className="font-medium">My Bookings</span>
+                    </Link>
+                    
+                    <Link
+                      to="/list-venue"
+                      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <MapPin className="h-5 w-5 text-blue-500" />
+                      <span className="font-medium">List Your Venue</span>
                     </Link>
                     
                     <Link

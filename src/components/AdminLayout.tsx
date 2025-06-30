@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppBar, Toolbar, IconButton, Drawer, List, ListItemIcon, ListItemText, Box, CssBaseline, Divider, Avatar, Menu, MenuItem, useTheme, useMediaQuery, ListItemButton, Paper, InputBase } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Drawer, List, ListItemIcon, ListItemText, Box, CssBaseline, Divider, useTheme, useMediaQuery, ListItemButton, Paper, InputBase } from '@mui/material';
 import { Menu as MenuIcon, Dashboard, Business, People, BarChart, Settings } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -22,23 +22,10 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ tab, onTabChange, onLogout, children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
-  const handleProfileMenuClose = () => setAnchorEl(null);
-
-  const handleMenuSettings = () => {
-    handleProfileMenuClose();
-    onTabChange(4); // Admin Settings tab
-  };
-
-  const handleMenuLogout = () => {
-    handleProfileMenuClose();
-    onLogout();
-  };
 
   const drawer = (
     <Box sx={{ height: '100%', bgcolor: '#f7f8fa', borderRadius: 4, m: 1, boxShadow: 2, display: 'flex', flexDirection: 'column', p: 1 }}>
@@ -80,7 +67,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ tab, onTabChange, onLogout, c
           </Paper>
           <Box sx={{ flexGrow: 1 }} />
           <button
-            onClick={onLogout}
+            onClick={() => {
+              onLogout();
+              window.location.href = '/super-admin/login';
+            }}
             style={{
               padding: '8px 16px',
               borderRadius: 6,

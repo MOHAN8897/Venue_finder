@@ -67,11 +67,6 @@ const Footer: React.FC = () => {
             <h3 className="text-lg font-semibold">For Venue Owners</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/list-venue" className="text-gray-300 hover:text-white transition-colors">
-                  List Your Venue
-                </Link>
-              </li>
-              <li>
                 <Link to="/owner-benefits" className="text-gray-300 hover:text-white transition-colors">
                   Owner Benefits
                 </Link>

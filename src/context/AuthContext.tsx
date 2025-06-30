@@ -90,18 +90,17 @@ const AuthManager: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
-  // Memoize syncUserProfile to prevent infinite render
-  const syncUserProfile = useCallback(async (supabaseUser: SupabaseUser) => {
+  // Move these back to top-level
+  const syncUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
-      // Always fetch the latest profile from the database
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', supabaseUser.id)
         .single();
       if (error || !profile) {
-        // If not found, create a new profile from metadata
         const { data: newProfile } = await supabase
           .from('profiles')
           .insert([{
@@ -125,9 +124,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Error syncing user profile:', error);
       setUser(null);
     }
-  }, []); // No dependencies, or add only if needed
+  };
 
-  const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser) => {
+  const handleUserLogin = async (supabaseUser: SupabaseUser) => {
     await syncUserProfile(supabaseUser);
     try {
       await sessionService.createSession(supabaseUser.id);
@@ -139,10 +138,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error setting up session tracking:', error);
     }
-  }, [syncUserProfile]);
+  };
 
-  // Memoize handleUserLogout with no dependencies
-  const handleUserLogout = useCallback(async (logoutUser?: UserProfile | null) => {
+  const handleUserLogout = async (logoutUser?: UserProfile | null) => {
     const targetUser = logoutUser ?? user;
     if (targetUser) {
       try {
@@ -155,15 +153,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Error logging logout activity:', error);
       }
     }
-  }, []);
+  };
 
+  // Initialize auth state
   useEffect(() => {
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
+        if (!mounted) return;
         setLoading(true);
-        // Try to restore user from localStorage first (for faster initial load)
         const savedUser = localStorage.getItem('venueFinder_user');
-        if (savedUser) {
+        if (savedUser && mounted) {
           try {
             const parsedUser = JSON.parse(savedUser);
             setUser(parsedUser);
@@ -173,6 +174,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
         const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
         if (session?.user) {
           await handleUserLogin(session.user as SupabaseUser);
         } else {
@@ -180,6 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
+            if (!mounted) return;
             console.log('Auth state change:', event, session?.user?.email);
             if (session?.user) {
               await handleUserLogin(session.user as SupabaseUser);
@@ -187,19 +190,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               await handleUserLogout(user);
               setUser(null);
             }
-            setLoading(false);
+            if (mounted) {
+              setLoading(false);
+            }
           }
         );
-        setLoading(false);
-        return () => subscription.unsubscribe();
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
+        return () => {
+          subscription.unsubscribe();
+        };
       } catch (error) {
         console.error('Error initializing auth:', error);
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
     };
+
     initializeAuth();
-    // Only run once on mount!
-  }, [handleUserLogin, handleUserLogout]);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Save user to localStorage when user state changes
   useEffect(() => {
@@ -268,7 +284,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       window.location.href = '/';
     }
-  }, []);
+  }, [handleUserLogout, user]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { success: false, error: 'User not authenticated' };
@@ -308,7 +324,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType & { refreshUserProfile: () => Promise<void> } = {
     ...{
       user,
-      loading,
+      loading: loading && !initialized, // Only show loading if not initialized
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useDatabase } from '../hooks/useDatabase';
 import { useNavigate } from 'react-router-dom';
 import { 
   userService, 
@@ -14,9 +15,12 @@ import {
   MapPin, 
   Star, 
   Building2,
-  Plus,
-  ArrowRight
+  ArrowRight,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
+import AuthWrapper from '../components/AuthWrapper';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface RecentBooking {
   booking_id: string;
@@ -36,10 +40,12 @@ interface RawBooking {
 
 const UserDashboard: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const { isConnected, isLoading: dbLoading, error: dbError, refreshConnection } = useDatabase();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // State for user data
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -62,23 +68,29 @@ const UserDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth to finish
+    if (authLoading || dbLoading) return; // Wait for auth and db to finish
     if (!user) {
       navigate('/signin');
       return;
     }
-    loadUserData();
-  }, [user, authLoading, navigate]);
+    if (!isConnected) {
+      setError('Database connection failed. Please check your connection and try again.');
+      return;
+    }
+    if (!dataLoaded) {
+      loadUserData();
+    }
+  }, [user, authLoading, dbLoading, isConnected, navigate, dataLoaded]);
 
   const loadUserData = async () => {
-    setLoading(true);
+    setDataLoading(true);
     setError('');
     try {
       // Fetch user profile using RPC
       const profileData = await userService.getCurrentUserProfile();
       if (!profileData) {
         setError('Failed to load user profile. Please try refreshing the page.');
-        setLoading(false);
+        setDataLoading(false);
         return;
       }
       setUserProfile(profileData);
@@ -100,16 +112,18 @@ const UserDashboard: React.FC = () => {
         })),
         recentFavorites: stats?.recentFavorites || []
       });
-    } catch {
+      setDataLoaded(true);
+    } catch (err) {
+      console.error('Error loading user data:', err);
       setError('Failed to load user data. Please try refreshing the page.');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
   const handleSettingsUpdate = async (newSettings: typeof settings) => {
     try {
-      setLoading(true);
+      setDataLoading(true);
       const result = await userService.updateNotificationSettings(newSettings);
       
       if (result.success) {
@@ -120,7 +134,16 @@ const UserDashboard: React.FC = () => {
     } catch {
       setError('Failed to update settings');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setDataLoaded(false);
+    setError('');
+    await refreshConnection();
+    if (isConnected) {
+      await loadUserData();
     }
   };
 
@@ -201,46 +224,55 @@ const UserDashboard: React.FC = () => {
           <div className="space-y-3">
             <button
               onClick={() => navigate('/venues')}
-              className="w-full flex items-center justify-between p-3 text-left bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between p-3 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
             >
-              <div className="flex items-center space-x-3">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                <span className="font-medium text-gray-900">Browse Venues</span>
+              <div className="flex items-center">
+                <MapPin className="h-5 w-5 mr-3" />
+                <span>Browse Venues</span>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400" />
+              <ArrowRight className="h-4 w-4" />
             </button>
-            
             <button
               onClick={() => navigate('/list-venue')}
-              className="w-full flex items-center justify-between p-3 text-left bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between p-3 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
             >
-              <div className="flex items-center space-x-3">
-                <Plus className="h-5 w-5 text-green-600" />
-                <span className="font-medium text-gray-900">List Your Venue</span>
+              <div className="flex items-center">
+                <Building2 className="h-5 w-5 mr-3" />
+                <span>List Your Venue</span>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400" />
+              <ArrowRight className="h-4 w-4" />
             </button>
-            
-            <button
-              onClick={() => navigate('/favorites')}
-              className="w-full flex items-center justify-between p-3 text-left bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <Heart className="h-5 w-5 text-red-600" />
-                <span className="font-medium text-gray-900">View Favorites</span>
-              </div>
-              <ArrowRight className="h-4 w-4 text-gray-400" />
-            </button>
-            
+            {dashboardStats.totalVenues > 0 && (
+              <button
+                onClick={() => navigate('/manage-venues')}
+                className="w-full flex items-center justify-between p-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+              >
+                <div className="flex items-center">
+                  <Building2 className="h-5 w-5 mr-3" />
+                  <span>Manage My Venues ({dashboardStats.totalVenues})</span>
+                </div>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={() => navigate('/bookings')}
-              className="w-full flex items-center justify-between p-3 text-left bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between p-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
             >
-              <div className="flex items-center space-x-3">
-                <Calendar className="h-5 w-5 text-purple-600" />
-                <span className="font-medium text-gray-900">My Bookings</span>
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 mr-3" />
+                <span>View Bookings</span>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400" />
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => navigate('/favorites')}
+              className="w-full flex items-center justify-between p-3 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+            >
+              <div className="flex items-center">
+                <Heart className="h-5 w-5 mr-3" />
+                <span>My Favorites</span>
+              </div>
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -249,21 +281,17 @@ const UserDashboard: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
           <div className="space-y-3">
             {dashboardStats.recentBookings.length > 0 ? (
-              dashboardStats.recentBookings.slice(0, 3).map((booking: RecentBooking) => (
-                <div key={booking.booking_id} className="flex items-center space-x-3 p-2 rounded-lg bg-gray-50">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {booking.venue_name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : ''}
-                    </p>
+              dashboardStats.recentBookings.slice(0, 3).map((booking, index) => (
+                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div>
+                    <p className="font-medium text-gray-900">{booking.venue_name}</p>
+                    <p className="text-sm text-gray-600">{new Date(booking.booking_date).toLocaleDateString()}</p>
                   </div>
+                  <Calendar className="h-4 w-4 text-gray-400" />
                 </div>
               ))
             ) : (
-              <p className="text-sm text-gray-500">No recent bookings</p>
+              <p className="text-gray-500 text-center py-4">No recent bookings</p>
             )}
           </div>
         </div>
@@ -273,170 +301,128 @@ const UserDashboard: React.FC = () => {
 
   const renderSettings = () => (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h3 className="text-xl font-semibold text-gray-900 mb-6">Notification Settings</h3>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-medium text-gray-900">Email Notifications</h4>
-              <p className="text-sm text-gray-500">Receive notifications via email</p>
+              <p className="font-medium text-gray-900">Email Notifications</p>
+              <p className="text-sm text-gray-600">Receive updates via email</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.email_notifications}
-                onChange={(e) => handleSettingsUpdate({ ...settings, email_notifications: e.target.checked })}
-                className="sr-only peer"
+            <button
+              onClick={() => handleSettingsUpdate({ ...settings, email_notifications: !settings.email_notifications })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.email_notifications ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.email_notifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
+            </button>
           </div>
-          
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-medium text-gray-900">SMS Notifications</h4>
-              <p className="text-sm text-gray-500">Receive notifications via SMS</p>
+              <p className="font-medium text-gray-900">SMS Notifications</p>
+              <p className="text-sm text-gray-600">Receive updates via SMS</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.sms_notifications}
-                onChange={(e) => handleSettingsUpdate({ ...settings, sms_notifications: e.target.checked })}
-                className="sr-only peer"
+            <button
+              onClick={() => handleSettingsUpdate({ ...settings, sms_notifications: !settings.sms_notifications })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.sms_notifications ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.sms_notifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-900">Marketing Emails</h4>
-              <p className="text-sm text-gray-500">Receive promotional emails</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.marketing_emails}
-                onChange={(e) => handleSettingsUpdate({ ...settings, marketing_emails: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-900">Booking Reminders</h4>
-              <p className="text-sm text-gray-500">Get reminded about upcoming bookings</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.booking_reminders}
-                onChange={(e) => handleSettingsUpdate({ ...settings, booking_reminders: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-900">New Venue Alerts</h4>
-              <p className="text-sm text-gray-500">Get notified about new venues</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.new_venue_alerts}
-                onChange={(e) => handleSettingsUpdate({ ...settings, new_venue_alerts: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 
-  // Show loading spinner if auth is loading
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-lg font-semibold mb-2">Error</div>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={loadUserData}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Manage your account and view your activity</p>
+    <AuthWrapper 
+      requireAuth={true}
+      loadingText="Loading dashboard..."
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <LoadingSpinner size="lg" text="Setting up your dashboard..." />
+            <p className="mt-4 text-gray-600">This may take a moment...</p>
+          </div>
         </div>
+      }
+    >
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-2">Welcome to your venue finder dashboard</p>
+          </div>
 
-        {/* Navigation Tabs */}
-        <div className="mb-8">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'overview'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'settings'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Settings
-            </button>
-          </nav>
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={handleRefresh}
+                className="text-red-600 hover:text-red-800"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {dataLoading && (
+            <div className="flex items-center justify-center py-12">
+              <LoadingSpinner size="md" text="Loading your data..." />
+            </div>
+          )}
+
+          {/* Content */}
+          {!dataLoading && (
+            <>
+              {/* Navigation Tabs */}
+              <div className="mb-6">
+                <nav className="flex space-x-8">
+                  <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'overview'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'settings'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Settings
+                  </button>
+                </nav>
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'overview' && renderOverview()}
+              {activeTab === 'settings' && renderSettings()}
+            </>
+          )}
         </div>
-
-        {/* Content */}
-        {activeTab === 'overview' && renderOverview()}
-        {activeTab === 'settings' && renderSettings()}
       </div>
-    </div>
+    </AuthWrapper>
   );
 };
 

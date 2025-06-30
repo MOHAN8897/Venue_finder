@@ -1,80 +1,124 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useDatabase } from '../hooks/useDatabase';
 import { bookingsService, UserBooking } from '../lib/userService';
-import { Calendar, MapPin, Clock, ArrowLeft, X } from 'lucide-react';
+import { 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  DollarSign, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle,
+  ArrowLeft,
+  RefreshCw,
+  Eye
+} from 'lucide-react';
+import AuthWrapper from '../components/AuthWrapper';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const UserBookings: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const { isConnected, isLoading: dbLoading, refreshConnection } = useDatabase();
   const [bookings, setBookings] = useState<UserBooking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth to finish
+    if (authLoading || dbLoading) return; // Wait for auth and db to finish
     if (!user) {
       setLoading(false);
       setError('You must be logged in to view your bookings.');
       return;
     }
+    if (!isConnected) {
+      setError('Database connection failed. Please check your connection and try again.');
+      return;
+    }
+    if (!dataLoaded) {
     loadBookings();
-  }, [user, authLoading]);
+    }
+  }, [user, authLoading, dbLoading, isConnected, dataLoaded]);
 
   const loadBookings = async () => {
     try {
       setLoading(true);
-      const userBookings = await bookingsService.getUserBookings();
-      setBookings(userBookings);
-    } catch {
-      setError('Failed to load bookings');
+      setError('');
+      const bookingsData = await bookingsService.getUserBookings();
+      setBookings(bookingsData || []);
+      setDataLoaded(true);
+    } catch (err) {
+      console.error('Error loading bookings:', err);
+      setError('Failed to load bookings. Please try refreshing the page.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
-    try {
-      const result = await bookingsService.cancelBooking(bookingId);
-      if (result.success) {
-        setBookings(prev => prev.filter(booking => booking.id !== bookingId));
-      } else {
-        setError(result.error || 'Failed to cancel booking');
-      }
-    } catch {
-      setError('Failed to cancel booking');
+  const handleRefresh = async () => {
+    setDataLoaded(false);
+    setError('');
+    await refreshConnection();
+    if (isConnected) {
+      await loadBookings();
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
+    switch (status) {
       case 'confirmed':
-        return 'bg-green-100 text-green-800';
+        return 'text-green-600 bg-green-100';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'text-yellow-600 bg-yellow-100';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'text-red-600 bg-red-100';
+      case 'completed':
+        return 'text-blue-600 bg-blue-100';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'pending':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'cancelled':
+        return <XCircle className="h-4 w-4" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4" />;
+      default:
+        return <AlertCircle className="h-4 w-4" />;
+    }
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
+    <AuthWrapper 
+      requireAuth={true}
+      loadingText="Loading bookings..."
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <LoadingSpinner size="lg" text="Setting up your bookings..." />
+            <p className="mt-4 text-gray-600">This may take a moment...</p>
+          </div>
+        </div>
+      }
+    >
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -89,30 +133,48 @@ const UserBookings: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
-              <p className="text-gray-600 mt-2">
-                {bookings.length} {bookings.length === 1 ? 'booking' : 'bookings'} total
-              </p>
+                <p className="text-gray-600 mt-2">Your venue reservations and bookings</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-6 w-6 text-blue-500" />
+                <span className="text-lg font-semibold text-gray-900">{bookings.length}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
-            {error}
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={handleRefresh}
+                className="text-red-600 hover:text-red-800"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+        </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <LoadingSpinner size="md" text="Loading your bookings..." />
           </div>
         )}
 
+          {/* Content */}
+          {!loading && (
+            <>
         {bookings.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings yet</h3>
-            <p className="text-gray-600 mb-6">
-              Start exploring venues and make your first booking to see them here.
-            </p>
+                  <p className="text-gray-600 mb-6">Start exploring venues and make your first booking!</p>
             <Link
               to="/venues"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
+                    <MapPin className="h-4 w-4 mr-2" />
               Browse Venues
             </Link>
           </div>
@@ -121,82 +183,83 @@ const UserBookings: React.FC = () => {
             {bookings.map((booking) => (
               <div
                 key={booking.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
               >
-                <div className="p-6">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                        {/* Booking Info */}
+                        <div className="flex-1">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        {booking.venue?.name || 'Venue Name'}
+                            <div>
+                              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                                {booking.venue?.name || 'Unknown Venue'}
                       </h3>
-                      
                       <div className="flex items-center text-gray-600 mb-2">
                         <MapPin className="h-4 w-4 mr-1" />
                         <span className="text-sm">
-                          {booking.venue?.address || 'Location not available'}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center text-gray-600 mb-4">
-                        <Clock className="h-4 w-4 mr-1" />
-                        <span className="text-sm">
-                          {new Date(booking.start_date).toLocaleDateString()} - {new Date(booking.end_date).toLocaleDateString()}
+                                  {booking.venue?.address || 'Address not available'}
                         </span>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                        {booking.status || 'Pending'}
-                      </span>
-                      
-                      {booking.status?.toLowerCase() !== 'cancelled' && (
-                        <button
-                          onClick={() => handleCancelBooking(booking.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Cancel Booking"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
+                            <div className={`flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
+                              {getStatusIcon(booking.status)}
+                              <span className="ml-1 capitalize">{booking.status}</span>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Total Amount</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        ₹{booking.total_price || '0'}
-                      </p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">Start Time</p>
+                                <p className="text-sm text-gray-600">{formatDate(booking.start_date)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">End Time</p>
+                                <p className="text-sm text-gray-600">{formatDate(booking.end_date)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">Total Price</p>
+                                <p className="text-sm text-gray-600">${booking.total_price}</p>
                     </div>
-                    
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {booking.status || 'Pending'}
-                      </p>
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">
-                      Booked on {new Date(booking.created_at).toLocaleDateString()}
+                          {booking.notes && (
+                            <div className="mb-4">
+                              <p className="text-sm font-medium text-gray-900 mb-1">Notes</p>
+                              <p className="text-sm text-gray-600">{booking.notes}</p>
                     </div>
+                          )}
                     
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-gray-500">
+                              Booking ID: {booking.id}
+                            </div>
                     <Link
                       to={`/venue/${booking.venue_id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                              className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                     >
+                              <Eye className="h-4 w-4 mr-1" />
                       View Venue
                     </Link>
+                          </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthWrapper>
   );
 };
 

@@ -4,6 +4,8 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
+import VenueOwnerProtectedRoute from './components/VenueOwnerProtectedRoute';
 
 // Pages
 import Home from './pages/Home';
@@ -12,6 +14,7 @@ import VenueDetail from './pages/VenueDetail';
 import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
 import ListVenue from './pages/ListVenue';
+import EditVenue from './pages/EditVenue';
 import SignIn from './pages/SignIn';
 import AuthCallback from './pages/AuthCallback';
 import ContactUs from './pages/ContactUs';
@@ -29,6 +32,12 @@ import ManageVenues from './pages/ManageVenues';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
+import BookingManager from './pages/BookingManager';
+import OfferManagerPage from './pages/OfferManagerPage';
+import CompliancePage from './pages/CompliancePage';
+import BookingSettingsPage from './pages/BookingSettingsPage';
+import RevenuePage from './pages/RevenuePage';
+import MessagingPage from './pages/MessagingPage';
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -48,7 +57,14 @@ function App() {
             <Routes>
           {/* Super Admin Standalone Routes (no main layout) */}
           <Route path="/super-admin/login" element={<SuperAdminLogin />} />
-          <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+          <Route 
+            path="/super-admin/dashboard" 
+            element={
+              <SuperAdminProtectedRoute>
+                <SuperAdminDashboard />
+              </SuperAdminProtectedRoute>
+            } 
+          />
 
           {/* Public Routes with Main Layout */}
           <Route path="/" element={<MainLayout><Home /></MainLayout>} />
@@ -63,6 +79,12 @@ function App() {
           <Route path="/forgot-password" element={<MainLayout><ForgotPassword /></MainLayout>} />
           <Route path="/verify-otp" element={<MainLayout><VerifyOtp /></MainLayout>} />
           <Route path="/reset-password" element={<MainLayout><ResetPassword /></MainLayout>} />
+          <Route path="/booking-manager" element={<BookingManager />} />
+          <Route path="/offer-manager" element={<OfferManagerPage />} />
+          <Route path="/compliance" element={<CompliancePage />} />
+          <Route path="/booking-settings" element={<BookingSettingsPage />} />
+          <Route path="/revenue" element={<RevenuePage />} />
+          <Route path="/messaging" element={<MessagingPage />} />
 
           {/* Protected Routes with Main Layout */}
               <Route 
@@ -113,10 +135,24 @@ function App() {
             path="/manage-venues" 
             element={
               <ProtectedRoute>
-                <MainLayout><ManageVenues /></MainLayout>
-                  </ProtectedRoute>
-                } 
-              />
+                <VenueOwnerProtectedRoute>
+                  <MainLayout><ManageVenues /></MainLayout>
+                </VenueOwnerProtectedRoute>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Edit Venue Route with Main Layout */}
+          <Route 
+            path="/edit-venue/:venueId" 
+            element={
+              <ProtectedRoute>
+                <VenueOwnerProtectedRoute>
+                  <MainLayout><EditVenue /></MainLayout>
+                </VenueOwnerProtectedRoute>
+              </ProtectedRoute>
+            } 
+          />
 
           {/* 404 Route with Main Layout */}
           <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />

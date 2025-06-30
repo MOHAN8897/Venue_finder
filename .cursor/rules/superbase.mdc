@@ -48,7 +48,6 @@ Add updated_at triggers
 
 Enable row-level security (RLS) where needed
 
-
 5. Keep the Workflow Clean & Synchronized
 No changes go live unless:
 
@@ -57,5 +56,125 @@ They are committed to sql_commands.md
 They are confirmed working in Supabase
 
 Consistent naming, timestamps, and audit trails
+
+
+---
+
+# General Project Rules
+
+## 1. Logging and Documentation
+- **Every code edit, task, feature, or bugfix must be logged** in the appropriate markdown file in `docs/`.
+  - Use `CODE_CHANGE_LOG.md` for code changes.
+  - Use `TASK_COMPLETION_LOG.md` for task/feature status.
+  - Use `ERRORS_AND_FIXES_LOG.md` for bugs and solutions.
+  - Use `PROJECT_OVERVIEW.md` for high-level context.
+- **If a log file does not exist, create it before proceeding.**
+- **Every log entry must include a timestamp.**
+- **Database changes must be logged in a dedicated database log file.**
+
+## 2. Unique Naming Policy
+- **All IDs, variable names, and instance names must be unique and descriptive.**
+- **Maintain a log of all unique IDs and instances in a dedicated file if needed.**
+- **Avoid duplicate IDs in HTML/JSX and database schemas.**
+
+## 3. Task, Code, and Feature Updates
+- **All task changes, code updates, and feature additions must be described in detail in the relevant log file.**
+- **Logs should include context, reasoning, and impact.**
+- **Every bug occurrence and solution must be logged with a timestamp and detailed explanation.**
+
+## 4. Security Policy
+- **All code changes must be made with security and clarity in mind.**
+- **Do not leak sensitive information in code or logs.**
+- **Review code for security vulnerabilities before committing.**
+
+## 5. Use of Context7 MCP and Supabase MCP
+- **Before creating or editing features, use Context7 MCP to get context on libraries, patterns, or best practices if needed.**
+- **Supabase MCP is connected: always get the current context of the Supabase database before making schema or data changes.**
+- **Maintain a detailed log of all database edits.**
+
+## 6. GitHub and Backup Policy
+- **Commit all changes (including logs) to GitHub regularly.**
+- **Use clear, descriptive commit messages referencing the relevant log files.**
+- **If issues arise, restore the project from the latest working commit.**
+
+## 7. UI Library Policy
+- **Use shadcn/ui for all frontend components unless a strong reason exists to use another library.**
+- **Document any exceptions in the code change log.**
+
+## 8. Command and Application Policy
+- **Apply changes directly when possible.**
+- **If a change cannot be applied automatically, provide the command or instructions to the user.**
+
+## 9. Testing Policy
+- All new features and bug fixes must include unit tests.
+- Use Jest and React Testing Library for frontend tests.
+- Maintain at least 80% test coverage.
+- Run all tests in CI before merging.
+
+## 10. Performance Policy
+- Set performance budgets for bundle size, page load time, and API response time.
+- Regularly monitor and optimize using tools like Lighthouse, Web Vitals, and Supabase logs.
+- Optimize images and assets for fast loading.
+- Use code splitting and lazy loading for large components/pages.
+- Minimize third-party dependencies and keep them up to date.
+- Avoid unnecessary re-renders and memory leaks in React components.
+- Use efficient database queries and proper indexing in Supabase.
+- Monitor and address performance regressions before production releases.
+
+---
+
+_These rules ensure project clarity, maintainability, and security. All contributors and AI agents must follow them strictly._
+
+# Main Project Rules (Summary for Future Code Creation)
+
+1. **Always review and follow all rules in this file before creating new code or features.**
+2. **Fix critical bugs and major performance issues before starting new features.**
+3. **Apply all rules (testing, performance, logging, naming, security, etc.) to every new feature, component, or bugfix.**
+4. **When editing old code, incrementally refactor and improve it (add tests, optimize, clean up) as you go.**
+5. **Log every code change, task, feature, and bug in the appropriate markdown file with a timestamp.**
+6. **Use shadcn/ui for frontend components unless a strong reason exists to use another library.**
+7. **Get context from Context7 MCP and Supabase MCP before making schema or data changes.**
+8. **Commit all changes (including logs) to GitHub for backup and restore.**
+
+---
+
+_These rules are designed to improve project quality, maintainability, and performance. **Following these rules will NOT break your website.** They will help prevent bugs, reduce technical debt, and make your site more stable and scalable over time._
+
+# Performance and Code Quality Workflow
+
+## Why Performance Matters
+- Fast load times and smooth interactions are required for user experience, SEO, resource efficiency, and accessibility.
+
+## Key Performance Rules
+1. **Set and Monitor Performance Budgets:**
+   - Bundle size, page load time, and API response time must have clear targets and be measured with Lighthouse/Web Vitals.
+2. **Optimize Images and Assets:**
+   - Use modern formats (WebP, AVIF), compress before upload, use responsive images, and serve via CDN.
+3. **Code Splitting and Lazy Loading:**
+   - Use React.lazy/Suspense and Vite code splitting for large components/pages.
+4. **Minimize Third-Party Dependencies:**
+   - Only install what you use, regularly audit and remove unused packages, keep dependencies up to date.
+5. **Efficient React Patterns:**
+   - Avoid unnecessary re-renders (React.memo, useMemo, useCallback), clean up side effects, use virtualization for large lists.
+6. **Database and API Optimization:**
+   - Use proper indexes in Supabase, avoid N+1 queries, paginate large data sets.
+7. **Monitor and Address Regressions:**
+   - Run performance checks before every production release. Block merges that introduce significant slowdowns.
+8. **Error/Performance Monitoring:**
+   - Integrate Sentry or similar for frontend, use Supabase logs for backend.
+
+## Hybrid Code Quality Approach (Rules for All Contributors)
+1. **Fix the Foundation First:**
+   - Before new features, address critical bugs and major performance bottlenecks in the existing codebase.
+2. **Apply All Rules to New Code:**
+   - Every new feature, component, or bugfix must follow all rules in this file (testing, performance, logging, naming, security, etc.).
+3. **Refactor Old Code Incrementally:**
+   - When editing old code, always leave it cleaner than you found it (add tests, optimize, clean up, improve naming, etc.).
+4. **Continuous Improvement:**
+   - Over time, this approach will raise the quality of the entire codebase without halting progress.
+
+---
+
+_These workflow rules ensure your project remains fast, stable, and maintainable as it grows. All contributors and AI agents must follow them strictly._
 
 
