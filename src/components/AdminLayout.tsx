@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { AppBar, Toolbar, IconButton, Drawer, List, ListItemIcon, ListItemText, Box, CssBaseline, Divider, useTheme, useMediaQuery, ListItemButton, Paper, InputBase } from '@mui/material';
-import { Menu as MenuIcon, Dashboard, Business, People, BarChart, Settings } from '@mui/icons-material';
 
 const drawerWidth = 240;
 
@@ -22,8 +20,6 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ tab, onTabChange, onLogout, children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
@@ -105,11 +101,4 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ tab, onTabChange, onLogout, c
           {drawer}
         </Drawer>
       </Box>
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, width: { md: `calc(100% - ${drawerWidth}px)` }, mt: 10 }}>
-        {children}
-      </Box>
-    </Box>
-  );
-};
-
-export default AdminLayout; 
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 }, width: { md: `calc(100% - ${drawerWidth}px)`

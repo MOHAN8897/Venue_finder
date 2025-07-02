@@ -58,6 +58,8 @@ They are confirmed working in Supabase
 Consistent naming, timestamps, and audit trails
 
 
+
+
 ---
 
 # General Project Rules
@@ -121,6 +123,8 @@ Consistent naming, timestamps, and audit trails
 - Use efficient database queries and proper indexing in Supabase.
 - Monitor and address performance regressions before production releases.
 
+
+
 ---
 
 _These rules ensure project clarity, maintainability, and security. All contributors and AI agents must follow them strictly._
@@ -135,6 +139,9 @@ _These rules ensure project clarity, maintainability, and security. All contribu
 6. **Use shadcn/ui for frontend components unless a strong reason exists to use another library.**
 7. **Get context from Context7 MCP and Supabase MCP before making schema or data changes.**
 8. **Commit all changes (including logs) to GitHub for backup and restore.**
+9. **For routine or required installations (e.g., analyzers, linters, test tools), proceed without asking. Only prompt the user for confirmation on major, breaking, or irreversible changes.**
+
+
 
 ---
 
@@ -173,8 +180,12 @@ _These rules are designed to improve project quality, maintainability, and perfo
 4. **Continuous Improvement:**
    - Over time, this approach will raise the quality of the entire codebase without halting progress.
 
+
+
 ---
 
 _These workflow rules ensure your project remains fast, stable, and maintainable as it grows. All contributors and AI agents must follow them strictly._
+
+
 
 

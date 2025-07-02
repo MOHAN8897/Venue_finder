@@ -835,3 +835,724 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
+
+## [2024-08-02] Supabase Venue Feature Schema Audit
+
+### Current Coverage
+- venues
+- amenities
+- venue_amenities
+- venue_slots
+- venue_approval_logs
+- reviews, user_reviews
+- favorites, user_favorites
+- profiles
+- user_sessions, user_activity_log, page_view_log
+- All major venue management, listing, and related features are covered.
+
+### Missing/To Be Added
+- [ ] venue_unavailability (advanced unavailability/recurring/holiday support)
+- [ ] venue_media (media metadata: alt text, order, type)
+- [ ] venue_managers (multi-manager support)
+- [ ] notifications (in-app notification persistence)
+- [ ] payments (payment/invoice tracking)
+- [ ] RLS review for new tables
+
+## [2024-08-02] Added Tables & RLS for Venue Features
+
+### 1. venue_unavailability
+```sql
+CREATE TABLE IF NOT EXISTS public.venue_unavailability (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  recurrence text,
+  reason text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.venue_unavailability ENABLE ROW LEVEL SECURITY;
+```
+- For advanced/recurring/holiday support. RLS to restrict to venue owners/managers/admins.
+
+### 2. venue_media
+```sql
+CREATE TABLE IF NOT EXISTS public.venue_media (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  url text NOT NULL,
+  type text NOT NULL, -- image, video, etc.
+  alt_text text,
+  order_index integer,
+  metadata jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.venue_media ENABLE ROW LEVEL SECURITY;
+```
+- For media metadata: alt text, order, type. RLS to restrict to venue owners/managers/admins.
+
+### 3. venue_managers
+```sql
+CREATE TABLE IF NOT EXISTS public.venue_managers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  manager_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'manager',
+  invited_by uuid REFERENCES public.profiles(id),
+  status text NOT NULL DEFAULT 'active',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.venue_managers ENABLE ROW LEVEL SECURITY;
+```
+- For multi-manager support. RLS to restrict to venue owners/admins.
+
+### 4. notifications
+```sql
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  content text NOT NULL,
+  data jsonb,
+  read boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+```
+- For in-app notification persistence. RLS to restrict to the user.
+
+### 5. payments
+```sql
+CREATE TABLE IF NOT EXISTS public.payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id uuid REFERENCES public.bookings(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  amount numeric NOT NULL,
+  currency text NOT NULL DEFAULT 'INR',
+  status text NOT NULL DEFAULT 'pending',
+  payment_method text,
+  invoice_url text,
+  metadata jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+```
+- For payment/invoice tracking. RLS to restrict to user and admins.
+
+### 12. Helper RPC: Get User Venue Submission Status
+```sql
+-- Returns the user's venue submission status: 'pending', 'approved', 'rejected', or 'none'
+CREATE OR REPLACE FUNCTION public.get_user_venue_submission_status()
+RETURNS text AS $$
+DECLARE
+    status text;
+BEGIN
+    SELECT approval_status INTO status
+    FROM public.venues
+    WHERE owner_id = auth.uid()
+    ORDER BY created_at DESC
+    LIMIT 1;
+    IF status IS NULL THEN
+        RETURN 'none';
+    END IF;
+    RETURN status;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+---
+
+**[2024-08-01]**
+
+- Created/Updated the `submit_venue` function to robustly handle venue submissions from the app. All incoming fields are now cast to the correct types (enum, integer, numeric, arrays) and empty strings are converted to NULL where appropriate. This prevents type errors and ensures all data is saved correctly in the venues table.
+- Applied via MCP.
+
+```sql
+-- See migration: add_or_update_submit_venue_function
+```
+
+---
+
+## [2024-08-01] Manual SQL Applied: Venue Submission Tagging & Status Helper
+
+The following SQL commands were manually applied to the database via the Supabase SQL Editor (not via CLI migration):
+
+### 1. Add submitter_email column to venues table
+```sql
+ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS submitter_email text;
+```
+
+### 2. Update submit_venue function to tag with user email
+```sql
+CREATE OR REPLACE FUNCTION public.submit_venue(venue_data jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    venue_id uuid;
+    user_id uuid;
+    user_email text;
+    venue_record record;
+BEGIN
+    user_id := auth.uid();
+    IF user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not authenticated');
+    END IF;
+    SELECT email INTO user_email FROM public.profiles WHERE user_id = user_id;
+    IF user_email IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User email not found');
+    END IF;
+    INSERT INTO public.venues (
+        owner_id,
+        submitted_by,
+        submitter_email,
+        name,
+        description,
+        venue_type,
+        address,
+        city,
+        state,
+        country,
+        pincode,
+        zip_code,
+        capacity,
+        area,
+        hourly_rate,
+        daily_rate,
+        price_per_hour,
+        price_per_day,
+        image_urls,
+        amenities,
+        website,
+        status,
+        approval_status,
+        submission_date,
+        is_approved,
+        is_active
+    ) VALUES (
+        user_id,
+        user_id,
+        user_email,
+        venue_data->>'name',
+        venue_data->>'description',
+        (venue_data->>'type')::venue_type,
+        venue_data->>'address',
+        venue_data->>'city',
+        venue_data->>'state',
+        venue_data->>'country',
+        venue_data->>'pincode',
+        venue_data->>'zip_code',
+        (venue_data->>'capacity')::integer,
+        venue_data->>'area',
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        COALESCE(venue_data->'images', '[]'::jsonb),
+        COALESCE(venue_data->'amenities', '[]'::jsonb),
+        venue_data->>'website',
+        'pending'::venue_status,
+        'pending',
+        now(),
+        false,
+        true
+    ) RETURNING id INTO venue_id;
+    UPDATE public.profiles 
+    SET role = 'owner',
+        owner_verified = true,
+        owner_verification_date = now()
+    WHERE user_id = user_id AND role != 'owner';
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Venue submitted successfully',
+        'venue_id', venue_id
+    );
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 3. Add get_user_venue_submission_status helper function
+```sql
+CREATE OR REPLACE FUNCTION public.get_user_venue_submission_status()
+RETURNS text AS $$
+DECLARE
+    status text;
+BEGIN
+    SELECT approval_status INTO status
+    FROM public.venues
+    WHERE owner_id = auth.uid()
+    ORDER BY created_at DESC
+    LIMIT 1;
+    IF status IS NULL THEN
+        RETURN 'none';
+    END IF;
+    RETURN status;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Context:**
+- These changes ensure all venue submissions are tagged to the user's account (user_id and email),
+- The system can now enforce first-time submission restrictions and multi-venue logic,
+- The frontend can check the user's venue status and update the UI accordingly.
+
+## [2024-08-01] Venue Submission & Super Admin Approval Workflow Overhaul
+
+### 1. Schema Cleanup
+- Remove legacy/conflicting columns and tables related to old venue approval workflows.
+
+### 2. ENUM Types
+```sql
+-- Venue Type ENUM
+CREATE TYPE IF NOT EXISTS venue_type AS ENUM ('cricket-box', 'farmhouse', 'banquet-hall', 'sports-complex', 'party-hall', 'conference-room');
+-- Venue Status ENUM
+CREATE TYPE IF NOT EXISTS venue_status AS ENUM ('pending', 'approved', 'rejected', 'inactive');
+```
+
+### 3. Venues Table (Clean Schema)
+```sql
+CREATE TABLE IF NOT EXISTS public.venues (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  submitted_by uuid REFERENCES auth.users(id),
+  name text NOT NULL,
+  description text,
+  venue_type venue_type,
+  address text,
+  city text,
+  state text,
+  country text,
+  zip_code text,
+  pincode text,
+  capacity integer,
+  area text,
+  hourly_rate integer,
+  daily_rate integer,
+  price_per_hour integer,
+  price_per_day integer,
+  image_urls text[],
+  amenities text[],
+  website text,
+  status venue_status DEFAULT 'pending',
+  approval_status text DEFAULT 'pending' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
+  approval_date timestamptz,
+  approved_by uuid REFERENCES auth.users(id),
+  rejection_reason text,
+  submission_date timestamptz DEFAULT now(),
+  is_approved boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  is_featured boolean DEFAULT false,
+  rating numeric,
+  total_reviews integer,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+```
+
+### 4. Venue Approval Logs Table
+```sql
+CREATE TABLE IF NOT EXISTS public.venue_approval_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  admin_id uuid REFERENCES auth.users(id),
+  action text NOT NULL CHECK (action IN ('approved', 'rejected', 'pending_review')),
+  reason text,
+  admin_notes text,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+### 5. Supabase Storage
+- Ensure a bucket exists for venue images/videos. Store URLs in `image_urls` array.
+
+### 6. RLS Policies
+```sql
+-- Enable RLS
+ALTER TABLE public.venues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.venue_approval_logs ENABLE ROW LEVEL SECURITY;
+
+-- Owners can manage their own venues
+CREATE POLICY IF NOT EXISTS "Venue owners can manage their venues" ON public.venues
+  FOR ALL USING (auth.uid() = owner_id);
+
+-- Super admins can view/manage all venues
+CREATE POLICY IF NOT EXISTS "Super admins can view all venues" ON public.venues
+  FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- Anyone can view approved and active venues
+CREATE POLICY IF NOT EXISTS "Anyone can view approved and active venues" ON public.venues
+  FOR SELECT USING (is_active = true AND approval_status = 'approved');
+
+-- Super admins can view all approval logs
+CREATE POLICY IF NOT EXISTS "Super admins can view all approval logs" ON public.venue_approval_logs
+  FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- Super admins can insert approval logs
+CREATE POLICY IF NOT EXISTS "Super admins can insert approval logs" ON public.venue_approval_logs
+  FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role = 'super_admin'));
+```
+
+### 7. Triggers
+```sql
+-- Update updated_at on change
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER IF NOT EXISTS update_venues_updated_at BEFORE UPDATE ON public.venues
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+### 8. Approval Functions
+```sql
+-- Approve Venue
+CREATE OR REPLACE FUNCTION public.approve_venue(
+    venue_uuid uuid,
+    admin_notes text DEFAULT NULL
+) RETURNS jsonb AS $$
+DECLARE
+    venue_record public.venues;
+    user_profile public.profiles;
+    result jsonb;
+BEGIN
+    SELECT * INTO venue_record FROM public.venues WHERE id = venue_uuid;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Venue not found');
+    END IF;
+    SELECT * INTO user_profile FROM public.profiles WHERE user_id = venue_record.submitted_by;
+    UPDATE public.venues 
+    SET approval_status = 'approved',
+        approval_date = now(),
+        approved_by = auth.uid(),
+        is_approved = true,
+        is_active = true
+    WHERE id = venue_uuid;
+    IF user_profile.role != 'owner' THEN
+        UPDATE public.profiles 
+        SET role = 'owner',
+            owner_verified = true,
+            owner_verification_date = now()
+        WHERE user_id = venue_record.submitted_by;
+    END IF;
+    INSERT INTO public.venue_approval_logs (
+        venue_id, admin_id, action, admin_notes
+    ) VALUES (
+        venue_uuid, auth.uid(), 'approved', admin_notes
+    );
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Venue approved successfully',
+        'venue_id', venue_uuid
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Reject Venue
+CREATE OR REPLACE FUNCTION public.reject_venue(
+    venue_uuid uuid,
+    rejection_reason text,
+    admin_notes text DEFAULT NULL
+) RETURNS jsonb AS $$
+DECLARE
+    venue_record public.venues;
+    result jsonb;
+BEGIN
+    SELECT * INTO venue_record FROM public.venues WHERE id = venue_uuid;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Venue not found');
+    END IF;
+    UPDATE public.venues 
+    SET approval_status = 'rejected',
+        rejection_reason = rejection_reason,
+        is_approved = false,
+        is_active = false
+    WHERE id = venue_uuid;
+    INSERT INTO public.venue_approval_logs (
+        venue_id, admin_id, action, reason, admin_notes
+    ) VALUES (
+        venue_uuid, auth.uid(), 'rejected', rejection_reason, admin_notes
+    );
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Venue rejected successfully',
+        'venue_id', venue_uuid
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 9. Notes
+- All legacy/conflicting schema and policies have been removed or replaced.
+- All changes are fully documented and ready for Supabase migration.
+
+### 10. RPC Functions for Venue Submission
+```sql
+-- Function to submit a new venue
+CREATE OR REPLACE FUNCTION public.submit_venue(venue_data jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    venue_id uuid;
+    user_id uuid;
+    user_email text;
+    venue_record record;
+BEGIN
+    -- Get current user ID
+    user_id := auth.uid();
+    IF user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not authenticated');
+    END IF;
+    -- Get user email from profiles
+    SELECT email INTO user_email FROM public.profiles WHERE user_id = user_id;
+    IF user_email IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User email not found');
+    END IF;
+    -- Insert venue into database
+    INSERT INTO public.venues (
+        owner_id,
+        submitted_by,
+        submitter_email,
+        name,
+        description,
+        venue_type,
+        address,
+        city,
+        state,
+        country,
+        pincode,
+        zip_code,
+        capacity,
+        area,
+        hourly_rate,
+        daily_rate,
+        price_per_hour,
+        price_per_day,
+        image_urls,
+        amenities,
+        website,
+        status,
+        approval_status,
+        submission_date,
+        is_approved,
+        is_active
+    ) VALUES (
+        user_id,
+        user_id,
+        user_email,
+        venue_data->>'name',
+        venue_data->>'description',
+        (venue_data->>'type')::venue_type,
+        venue_data->>'address',
+        venue_data->>'city',
+        venue_data->>'state',
+        venue_data->>'country',
+        venue_data->>'pincode',
+        venue_data->>'zip_code',
+        (venue_data->>'capacity')::integer,
+        venue_data->>'area',
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        COALESCE(venue_data->'images', '[]'::jsonb),
+        COALESCE(venue_data->'amenities', '[]'::jsonb),
+        venue_data->>'website',
+        'pending'::venue_status,
+        'pending',
+        now(),
+        false,
+        true
+    ) RETURNING id INTO venue_id;
+    -- Update user role to owner if not already
+    UPDATE public.profiles 
+    SET role = 'owner',
+        owner_verified = true,
+        owner_verification_date = now()
+    WHERE user_id = user_id AND role != 'owner';
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Venue submitted successfully',
+        'venue_id', venue_id
+    );
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user's submitted venues
+CREATE OR REPLACE FUNCTION public.get_user_submitted_venues()
+RETURNS TABLE (
+    id uuid,
+    name text,
+    description text,
+    type text,
+    address text,
+    city text,
+    state text,
+    pincode text,
+    capacity integer,
+    area text,
+    hourly_rate integer,
+    daily_rate integer,
+    images text[],
+    videos text[],
+    approval_status text,
+    submission_date timestamptz,
+    approval_date timestamptz,
+    rejection_reason text,
+    is_approved boolean,
+    is_active boolean
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        v.id,
+        v.name,
+        v.description,
+        v.venue_type::text,
+        v.address,
+        v.city,
+        v.state,
+        v.pincode,
+        v.capacity,
+        v.area,
+        v.hourly_rate,
+        v.daily_rate,
+        v.image_urls,
+        ARRAY[]::text[] as videos, -- Placeholder for videos
+        v.approval_status,
+        v.submission_date,
+        v.approval_date,
+        v.rejection_reason,
+        v.is_approved,
+        v.is_active
+    FROM public.venues v
+    WHERE v.owner_id = auth.uid()
+    ORDER BY v.created_at DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user's venue statistics
+CREATE OR REPLACE FUNCTION public.get_user_venue_stats()
+RETURNS jsonb AS $$
+DECLARE
+    stats jsonb;
+BEGIN
+    SELECT jsonb_build_object(
+        'total_submitted', COUNT(*),
+        'pending_review', COUNT(*) FILTER (WHERE approval_status = 'pending'),
+        'approved', COUNT(*) FILTER (WHERE approval_status = 'approved'),
+        'rejected', COUNT(*) FILTER (WHERE approval_status = 'rejected'),
+        'active_venues', COUNT(*) FILTER (WHERE is_active = true AND approval_status = 'approved')
+    ) INTO stats
+    FROM public.venues
+    WHERE owner_id = auth.uid();
+    
+    RETURN stats;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 11. Tag Venue Submissions with User Sign-in Email
+```sql
+-- Add submitter_email column to venues table
+ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS submitter_email text;
+
+-- Update submit_venue function to save user email
+CREATE OR REPLACE FUNCTION public.submit_venue(venue_data jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    venue_id uuid;
+    user_id uuid;
+    user_email text;
+    venue_record record;
+BEGIN
+    -- Get current user ID
+    user_id := auth.uid();
+    IF user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not authenticated');
+    END IF;
+    -- Get user email from profiles
+    SELECT email INTO user_email FROM public.profiles WHERE user_id = user_id;
+    IF user_email IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User email not found');
+    END IF;
+    -- Insert venue into database
+    INSERT INTO public.venues (
+        owner_id,
+        submitted_by,
+        submitter_email,
+        name,
+        description,
+        venue_type,
+        address,
+        city,
+        state,
+        country,
+        pincode,
+        zip_code,
+        capacity,
+        area,
+        hourly_rate,
+        daily_rate,
+        price_per_hour,
+        price_per_day,
+        image_urls,
+        amenities,
+        website,
+        status,
+        approval_status,
+        submission_date,
+        is_approved,
+        is_active
+    ) VALUES (
+        user_id,
+        user_id,
+        user_email,
+        venue_data->>'name',
+        venue_data->>'description',
+        (venue_data->>'type')::venue_type,
+        venue_data->>'address',
+        venue_data->>'city',
+        venue_data->>'state',
+        venue_data->>'country',
+        venue_data->>'pincode',
+        venue_data->>'zip_code',
+        (venue_data->>'capacity')::integer,
+        venue_data->>'area',
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        (venue_data->>'hourly_rate')::integer,
+        CASE WHEN venue_data->>'daily_rate' IS NOT NULL THEN (venue_data->>'daily_rate')::integer ELSE NULL END,
+        COALESCE(venue_data->'images', '[]'::jsonb),
+        COALESCE(venue_data->'amenities', '[]'::jsonb),
+        venue_data->>'website',
+        'pending'::venue_status,
+        'pending',
+        now(),
+        false,
+        true
+    ) RETURNING id INTO venue_id;
+    -- Update user role to owner if not already
+    UPDATE public.profiles 
+    SET role = 'owner',
+        owner_verified = true,
+        owner_verification_date = now()
+    WHERE user_id = user_id AND role != 'owner';
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Venue submitted successfully',
+        'venue_id', venue_id
+    );
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

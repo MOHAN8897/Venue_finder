@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, MapPin, User, LogOut, LayoutDashboard, Heart, Calendar, Settings, ChevronDown, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
 import NotificationPanel from './NotificationPanel';
+import { VenueSubmissionService } from '../lib/venueSubmissionService';
+import { supabase } from '../lib/supabase';
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -12,7 +13,7 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
   const profileMenuRef = useRef<HTMLDivElement>(null);
-  const [hasVenueSubmission, setHasVenueSubmission] = useState(false);
+  const [hasApprovedVenue, setHasApprovedVenue] = useState(false);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -29,20 +30,15 @@ const Header: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const checkVenueSubmission = async () => {
+    const checkApprovedVenue = async () => {
       if (user) {
-        // Query Supabase for a venue submission by this user
-        const { data, error } = await supabase
-          .from('venues')
-          .select('id')
-          .eq('owner_id', user.id)
-          .maybeSingle();
-        setHasVenueSubmission(!!data && !error);
+        const status = await VenueSubmissionService.getUserVenueSubmissionStatus();
+        setHasApprovedVenue(status === 'approved');
       } else {
-        setHasVenueSubmission(false);
+        setHasApprovedVenue(false);
       }
     };
-    checkVenueSubmission();
+    checkApprovedVenue();
   }, [user]);
 
   const handleSignOut = async () => {
@@ -53,6 +49,27 @@ const Header: React.FC = () => {
     } catch {
       setIsProfileMenuOpen(false);
       navigate('/');
+    }
+  };
+
+  const handleVenueSubmission = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('venues')
+        .insert([{
+          name: 'Venue Name',
+          type: 'sports-complex',
+          submitted_by: user.id,
+          user_id: user.id
+        }]);
+
+      if (error) {
+        console.error('Error submitting venue:', error);
+      } else {
+        console.log('Venue submission successful:', data);
+      }
+    } catch (error) {
+      console.error('Error submitting venue:', error);
     }
   };
 
@@ -108,6 +125,7 @@ const Header: React.FC = () => {
                       <img
                         src={user.avatar_url}
                         alt={user.full_name || user.email || 'User'}
+                        loading="lazy"
                         className="w-8 h-8 rounded-full object-cover"
                       />
                     ) : user.email ? (
@@ -141,8 +159,8 @@ const Header: React.FC = () => {
                           <span className="font-medium">Dashboard</span>
                         </Link>
                         
-                        {/* Show Manage Venues for owners */}
-                        {hasVenueSubmission && (
+                        {/* Show Manage Venues for owners with approved venue */}
+                        {hasApprovedVenue && (
                           <Link
                             to="/manage-venues"
                             className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
@@ -262,6 +280,7 @@ const Header: React.FC = () => {
                         <img
                           src={user.avatar_url}
                           alt={user.full_name || user.email || 'User'}
+                          loading="lazy"
                           className="w-8 h-8 rounded-full object-cover"
                         />
                       ) : user.email ? (
@@ -289,7 +308,7 @@ const Header: React.FC = () => {
                     </Link>
                     
                     {/* Show Manage Venues for owners in mobile menu */}
-                    {hasVenueSubmission && (
+                    {hasApprovedVenue && (
                       <Link
                         to="/manage-venues"
                         className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"

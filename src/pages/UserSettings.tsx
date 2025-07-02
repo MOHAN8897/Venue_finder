@@ -14,17 +14,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Cropper from 'react-easy-crop';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import Button from '@mui/material/Button';
-import Slider from '@mui/material/Slider';
-import { getCroppedImg } from '../utils/cropImage';
-import AuthWrapper from '../components/AuthWrapper';
-import LoadingSpinner from '../components/LoadingSpinner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { getCroppedImg, convertToWebP } from '../utils/cropImage';
 
 // Utility to omit preferences field
 function omitPreferences<T extends object>(obj: T): Partial<T> {
@@ -222,8 +215,10 @@ const UserSettings: React.FC = () => {
     setLoading(true);
     try {
       const croppedBlob = await getCroppedImg(previewUrl!, croppedAreaPixels);
-      const croppedFile = new File([croppedBlob], selectedImage.name, { type: croppedBlob.type });
-      const result = await userService.uploadUserAvatar(croppedFile);
+      // Convert cropped image to WebP
+      const webpBlob = await convertToWebP(new File([croppedBlob], selectedImage.name, { type: croppedBlob.type }));
+      const webpFile = new File([webpBlob], selectedImage.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+      const result = await userService.uploadUserAvatar(webpFile);
       if (result.success) {
         setSuccess('Avatar updated successfully!');
         await refreshUserProfile();
@@ -342,7 +337,6 @@ const UserSettings: React.FC = () => {
         </div>
 
       <Dialog open={cropModalOpen} onClose={() => setCropModalOpen(false)}>
-          <DialogContent>
           <div className="relative h-64">
                 <Cropper
               image={previewUrl || ''}
@@ -354,21 +348,7 @@ const UserSettings: React.FC = () => {
                   onCropComplete={onCropComplete}
                 />
               </div>
-            <div className="mt-4">
-              <Slider
-                value={zoom}
-                min={1}
-                max={3}
-                step={0.1}
-                onChange={(_, value) => setZoom(value as number)}
-              />
-            </div>
-          </DialogContent>
-          <DialogActions>
-          <Button onClick={() => setCropModalOpen(false)}>Cancel</Button>
-          <Button onClick={handleCropSave} color="primary">Save</Button>
-          </DialogActions>
-        </Dialog>
+          </Dialog>
     </AuthWrapper>
   );
 };

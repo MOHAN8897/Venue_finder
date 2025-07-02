@@ -211,6 +211,7 @@ const Home: React.FC = () => {
                     <img
                       src={venue.images && venue.images.length > 0 ? venue.images[0] : 'https://via.placeholder.com/400x300?text=No+Image'}
                       alt={venue.name}
+                      loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                     <div className="absolute top-4 right-4 bg-white rounded-full px-3 py-1 flex items-center space-x-1">

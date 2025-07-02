@@ -1,44 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { MapPin, Star, Users, Calendar, Clock, Wifi, Car, Shield, Phone, Mail, Heart, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { venueService, Venue } from '../lib/venueService';
 
 const VenueDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const [venue, setVenue] = useState<Venue | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDate, setSelectedDate] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(false);
 
-  // Blank data with unique IDs for future Supabase integration
-  const venue = {
-    id: id || 'venue-detail-1',
-    name: 'Sample Venue Detail',
-    description: 'This is a sample venue description. Connect to Supabase to show real data. This venue offers excellent facilities and is perfect for various events.',
-    type: 'cricket-box',
-    location: {
-      address: 'Sample Address, Sample City',
-      city: 'Sample City',
-      state: 'Sample State',
-      pincode: '123456',
-      coordinates: { lat: 28.4595, lng: 77.0266 }
-    },
-    images: [
-      'https://via.placeholder.com/800x400?text=Venue+Image+1',
-      'https://via.placeholder.com/800x400?text=Venue+Image+2',
-      'https://via.placeholder.com/800x400?text=Venue+Image+3'
-    ],
-    amenities: ['Parking', 'AC', 'WiFi', 'Security', 'Catering'],
-    specifications: { 
-      capacity: 100, 
-      area: '2000 sq ft', 
-      dimensions: '100x60 feet' 
-    },
-    pricing: { hourlyRate: 1500, currency: 'INR' },
-    rating: 4.5,
-    reviewCount: 50,
-    verified: true,
-    availability: [] as Array<{id: string, date: string, available: boolean, price: number}>,
-    google_maps_embed_code: '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3505.3744747474747!2d77.0266!3d28.4595!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d1a4e5d335d33%3A0x390d1a4e5d335d33!2sSample%20Address%2C%20Sample%20City%2C%20Sample%20State%20123456!5e0!3m2!1sen!2sin!4v1630454400000!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy"></iframe>'
-  };
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    venueService.getVenueById(id)
+      .then((data) => {
+        if (data) {
+          setVenue(data);
+        } else {
+          setError('Venue not found.');
+        }
+      })
+      .catch(() => setError('Failed to load venue.'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Loading venue details...</div>;
+  }
+  if (error) {
+    return <div className="flex justify-center items-center h-64 text-red-600">{error}</div>;
+  }
+  if (!venue) {
+    return null;
+  }
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % venue.images.length);
@@ -85,19 +82,23 @@ const VenueDetail: React.FC = () => {
     return days;
   };
 
+  // Images fallback
+  const images = venue.image_urls && venue.image_urls.length > 0 ? venue.image_urls : (venue.images || []);
+
   return (
     <div id="venue-detail-page" className="min-h-screen bg-gray-50">
       {/* Image Gallery */}
       <div id="venue-image-gallery" className="relative h-96 bg-gray-900">
         <img
-          src={venue.images[currentImageIndex]}
+          src={images[currentImageIndex]}
           alt={venue.name}
+          loading="lazy"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black/20"></div>
         
         {/* Navigation Arrows */}
-        {venue.images.length > 1 && (
+        {images.length > 1 && (
           <>
             <button
               id="prev-image-button"
@@ -118,7 +119,7 @@ const VenueDetail: React.FC = () => {
 
         {/* Image Indicators */}
         <div id="image-indicators" className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-          {venue.images.map((_, index) => (
+          {images.map((_, index) => (
             <button
               key={index}
               id={`image-indicator-${index}`}

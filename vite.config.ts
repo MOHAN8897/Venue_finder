@@ -17,4 +17,7 @@ export default defineConfig({
     port: 5173,       // Always use port 5173
     strictPort: true, // Fail if port is busy (no auto-switching)
   },
+  build: {
+    sourcemap: true,
+  },
 });

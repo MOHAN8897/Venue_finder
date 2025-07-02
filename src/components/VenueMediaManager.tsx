@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from './ui/sortable-item';
+import { convertToWebP } from '../utils/cropImage';
 
 interface MediaFile {
   id: string;
@@ -32,23 +33,39 @@ const VenueMediaManager: React.FC = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
+  const memoizedImages = useMemo(() => images, [images]);
+  const memoizedVideos = useMemo(() => videos, [videos]);
+  const memoizedRemoveImage = useCallback(removeImage, [images]);
+  const memoizedSetCoverImage = useCallback(setCoverImage, [images]);
+  const memoizedRemoveVideo = useCallback(removeVideo, [videos]);
+
   // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     if (images.length + files.length > MAX_IMAGES) {
       setError(`Maximum ${MAX_IMAGES} images allowed.`);
       return;
     }
-    const newFiles: MediaFile[] = Array.from(files).map((file, idx) => ({
-      id: `${Date.now()}-img-${Math.random()}`,
-      file,
-      url: URL.createObjectURL(file),
-      type: 'image',
-      isCover: false
-    }));
-    setImages(prev => prev.concat(newFiles));
     setError(null);
+    // Convert all files to WebP
+    const newFiles: MediaFile[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const webpBlob = await convertToWebP(file);
+        const webpFile = new File([webpBlob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+        newFiles.push({
+          id: `${Date.now()}-img-${Math.random()}`,
+          file: webpFile,
+          url: URL.createObjectURL(webpFile),
+          type: 'image',
+          isCover: false
+        });
+      } catch (err) {
+        setError('Failed to convert image to WebP.');
+      }
+    }
+    setImages(prev => prev.concat(newFiles));
   };
 
   // Handle video upload
@@ -59,7 +76,7 @@ const VenueMediaManager: React.FC = () => {
       setError(`Maximum ${MAX_VIDEOS} videos allowed.`);
       return;
     }
-    const newFiles: MediaFile[] = Array.from(files).map((file, idx) => ({
+    const newFiles: MediaFile[] = Array.from(files).map((file) => ({
       id: `${Date.now()}-vid-${Math.random()}`,
       file,
       url: URL.createObjectURL(file),
@@ -96,6 +113,25 @@ const VenueMediaManager: React.FC = () => {
     }
   };
 
+  // Memoized Image Item
+  const ImageItem = React.memo(({ img, removeImage, setCoverImage }: { img: MediaFile, removeImage: (id: string) => void, setCoverImage: (id: string) => void }) => (
+    <div className="relative group w-32 h-32">
+      <img src={img.url} alt="venue" loading="lazy" className="w-full h-full object-cover rounded-lg border" />
+      <Button size="icon" variant="ghost" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100" onClick={() => removeImage(img.id)}><Trash2 className="h-4 w-4" /></Button>
+      <Button size="icon" variant={img.isCover ? 'default' : 'outline'} className="absolute bottom-1 left-1" onClick={() => setCoverImage(img.id)}><Star className={img.isCover ? 'text-yellow-400' : 'text-gray-400'} /></Button>
+      <GripVertical className="absolute bottom-1 right-1 text-gray-400 cursor-move" />
+      {img.isCover && <Badge className="absolute top-1 left-1 bg-yellow-400 text-white">Cover</Badge>}
+    </div>
+  ));
+
+  // Memoized Video Item
+  const VideoItem = React.memo(({ vid, removeVideo }: { vid: MediaFile, removeVideo: (id: string) => void }) => (
+  <div className="relative group w-32 h-32">
+    <video src={vid.url} className="w-full h-full object-cover rounded-lg border" controls />
+    <Button size="icon" variant="ghost" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100" onClick={() => removeVideo(vid.id)}><Trash2 className="h-4 w-4" /></Button>
+  </div>
+));
+
   return (
     <Card>
       <CardHeader>
@@ -108,16 +144,10 @@ const VenueMediaManager: React.FC = () => {
           <Label className="text-base font-semibold mb-4">Venue Images (max {MAX_IMAGES})</Label>
           <div className="flex flex-wrap gap-4">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={images.map(img => img.id)} strategy={verticalListSortingStrategy}>
-                {images.map((img) => (
+              <SortableContext items={memoizedImages.map(img => img.id)} strategy={verticalListSortingStrategy}>
+                {memoizedImages.map((img) => (
                   <SortableItem key={img.id} id={img.id}>
-                    <div className="relative group w-32 h-32">
-                      <img src={img.url} alt="venue" className="w-full h-full object-cover rounded-lg border" />
-                      <Button size="icon" variant="ghost" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100" onClick={() => removeImage(img.id)}><Trash2 className="h-4 w-4" /></Button>
-                      <Button size="icon" variant={img.isCover ? 'default' : 'outline'} className="absolute bottom-1 left-1" onClick={() => setCoverImage(img.id)}><Star className={img.isCover ? 'text-yellow-400' : 'text-gray-400'} /></Button>
-                      <GripVertical className="absolute bottom-1 right-1 text-gray-400 cursor-move" />
-                      {img.isCover && <Badge className="absolute top-1 left-1 bg-yellow-400 text-white">Cover</Badge>}
-                    </div>
+                    <ImageItem img={img} removeImage={memoizedRemoveImage} setCoverImage={memoizedSetCoverImage} />
                   </SortableItem>
                 ))}
               </SortableContext>
@@ -135,11 +165,8 @@ const VenueMediaManager: React.FC = () => {
         <div>
           <Label className="text-base font-semibold mb-4">Venue Videos (max {MAX_VIDEOS})</Label>
           <div className="flex flex-wrap gap-4">
-            {videos.map((vid) => (
-              <div key={vid.id} className="relative group w-32 h-32">
-                <video src={vid.url} className="w-full h-full object-cover rounded-lg border" controls />
-                <Button size="icon" variant="ghost" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100" onClick={() => removeVideo(vid.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
+            {memoizedVideos.map((vid) => (
+              <VideoItem key={vid.id} vid={vid} removeVideo={memoizedRemoveVideo} />
             ))}
             {videos.length < MAX_VIDEOS && (
               <div className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400" onClick={() => videoInputRef.current?.click()}>

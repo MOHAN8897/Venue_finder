@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { convertToWebP } from '../utils/cropImage';
 
 // Types for user management
 export interface UserProfile {
@@ -167,21 +168,27 @@ export const userService = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
-
-      const fileName = `${user.id}-${Date.now()}-${file.name}`;
+      // Convert to WebP for optimization
+      let uploadFile = file;
+      if (file.type.startsWith('image/')) {
+        try {
+          const webpBlob = await convertToWebP(file);
+          uploadFile = new File([webpBlob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+        } catch (err) {
+          // Fallback to original if conversion fails
+          console.error('WebP conversion failed, uploading original:', err);
+        }
+      }
+      const fileName = `${user.id}-${Date.now()}-${uploadFile.name}`;
       const { error: uploadError } = await supabase.storage
         .from('user-avatars')
-        .upload(fileName, file);
-
+        .upload(fileName, uploadFile);
       if (uploadError) throw uploadError;
-
       const { data: { publicUrl } } = supabase.storage
         .from('user-avatars')
         .getPublicUrl(fileName);
-
       // Update user profile with new avatar URL
       await this.updateUserProfile({ avatar_url: publicUrl });
-
       return { success: true, url: publicUrl };
     } catch (error: unknown) {
       console.error('Error uploading avatar:', error);
@@ -422,15 +429,24 @@ export const reviewsService = {
 
 // Bookings Management
 export const bookingsService = {
-  // Get user bookings
-  async getUserBookings(): Promise<UserBooking[]> {
+  // Get user bookings with pagination
+  async getUserBookings(page: number = 1, pageSize: number = 10): Promise<{ bookings: UserBooking[]; total: number }> {
     try {
-      const { data, error } = await supabase.rpc('get_user_bookings', {});
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error, count } = await supabase
+        .from('bookings')
+        .select(`*, venue:venues!bookings_venue_id_fkey(id, name, address, image_urls)`, { count: 'exact' })
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to);
       if (error) throw error;
-      return data as UserBooking[] || [];
+      return { bookings: (data as UserBooking[]) || [], total: count || 0 };
     } catch (error) {
       console.error('Error fetching user bookings:', error);
-      return [];
+      return { bookings: [], total: 0 };
     }
   },
 
@@ -583,7 +599,7 @@ export const dashboardService = {
 
       // Get recent data
       const [recentBookings, recentFavorites] = await Promise.all([
-        bookingsService.getUserBookings().then(bookings => bookings.slice(0, 5)),
+        bookingsService.getUserBookings(1, 5).then(res => res.bookings),
         favoritesService.getUserFavorites().then(favorites => favorites.slice(0, 5))
       ]);
 

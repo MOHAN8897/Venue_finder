@@ -41,6 +41,9 @@ export interface Venue {
   google_maps_link?: string;
   google_maps_embed_code?: string;
   is_published: boolean;
+  submission_date?: string;
+  approval_date?: string;
+  rejection_reason?: string;
 }
 
 interface VenueWithOwner extends Venue {
@@ -131,8 +134,8 @@ export const venueService = {
     }
   },
 
-  // Get filtered venues based on criteria
-  getFilteredVenues: async (filters: VenueFilters): Promise<Venue[]> => {
+  // Get filtered venues based on criteria, with pagination
+  getFilteredVenues: async (filters: VenueFilters, page: number = 1, pageSize: number = 12): Promise<{ venues: Venue[]; total: number }> => {
     try {
       let query = supabase
         .from('venues')
@@ -143,7 +146,7 @@ export const venueService = {
             name,
             full_name
           )
-        `)
+        `, { count: 'exact' })
         .eq('status', 'approved')
         .eq('verified', true);
 
@@ -165,13 +168,12 @@ export const venueService = {
         query = query.gte('capacity', filters.capacity);
       }
 
-      // Apply amenities filter
-      if (filters.amenities && filters.amenities.length > 0) {
-        // Note: This would need to be implemented with venue_amenities junction table
-        // For now, we'll skip amenities filtering
-      }
+      // Pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
 
-      const { data, error } = await query
+      const { data, error, count } = await query
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -180,14 +182,17 @@ export const venueService = {
         throw error;
       }
 
-      return (data || []).map((venue: VenueWithOwner) => ({
-        ...venue,
-        owner_email: venue.owner?.email,
-        owner_name: venue.owner?.full_name || venue.owner?.name
-      }));
+      return {
+        venues: (data || []).map((venue: VenueWithOwner) => ({
+          ...venue,
+          owner_email: venue.owner?.email,
+          owner_name: venue.owner?.full_name || venue.owner?.name
+        })),
+        total: count || 0
+      };
     } catch (error) {
       console.error('Error in getFilteredVenues:', error);
-      return [];
+      return { venues: [], total: 0 };
     }
   },
 

@@ -1,5 +1,23 @@
 # Performance Refactor Tasks
 
+## Performance Budgets (2025-06-30)
+- Main JS bundle: **< 250KB gzipped** (current: ~447KB gzipped)
+- Main CSS bundle: **< 30KB gzipped** (current: ~13.7KB gzipped)
+- Largest single JS chunk: **< 150KB gzipped**
+- Home page load time: **< 1.5s** on 3G/slow 4G
+- API response time: **< 300ms** for all main endpoints
+- Time to Interactive: **< 2s**
+- Cumulative Layout Shift: **< 0.1**
+- Largest Contentful Paint: **< 2.5s**
+
+## Largest Bundle Contributors (2025-06-30)
+- `react-dom` (~131KB minified)
+- `react` core
+- `@remix-run/router`, `react-router`, `react-router-dom`
+- Many small icon modules from `lucide-react`
+- Charting libraries (if used)
+- No single huge dependency, but icons and routing libraries add up
+
 ## Objective
 Refactor and optimize the entire codebase to meet the project's performance and code quality standards. This includes bundle size, load time, efficient React patterns, database optimization, and more.
 
@@ -8,7 +26,7 @@ Refactor and optimize the entire codebase to meet the project's performance and 
 ## Task Checklist
 
 - [ ] **Audit bundle size and set performance budgets**
-  - [ ] Use Vite's build output and source-map-explorer to analyze JS/CSS bundle
+  - [x] Use Vite's build output and source-map-explorer to analyze JS/CSS bundle
   - [ ] Set clear targets (e.g., main bundle < 250KB gzipped)
   - [ ] Identify/document largest contributors to bundle size
 
@@ -74,5 +92,6 @@ Refactor and optimize the entire codebase to meet the project's performance and 
 | Date | Update |
 |------|--------|
 |      | File created. Initial task list added. |
+| 2024-08-01 | Ran Vite build. Main JS bundle: 1,528 KB (447 KB gzipped). CSS: 81 KB (13.7 KB gzipped). **Warning:** Some chunks > 500 KB. Need code splitting and bundle optimization. |
 
 _Add new tasks and log entries as the refactor progresses._ 

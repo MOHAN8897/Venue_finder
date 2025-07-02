@@ -86,7 +86,12 @@ const OwnerDashboard: React.FC = () => {
                     onVenueSelect={handleVenueSelect}
                 />
 
-                {selectedVenue ? (
+                {venues.length === 0 ? (
+                  <div className="mt-8 text-center p-12 bg-white rounded-lg shadow">
+                    <h2 className="text-xl font-semibold">No venues found</h2>
+                    <p className="text-gray-500 mt-2">You have not listed any venues yet. Use the 'List a New Venue' button to get started.</p>
+                  </div>
+                ) : selectedVenue ? (
                     <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Left Column */}
                         <div className="lg:col-span-2 space-y-8">
@@ -103,7 +108,7 @@ const OwnerDashboard: React.FC = () => {
                                     monthlyViews: 2100,
                                 }}
                             />
-                            <VenueMediaManager venueId={selectedVenue.id} />
+                            <VenueMediaManager />
                             <ActivityLogViewer venueId={selectedVenue.id} />
       </div>
 

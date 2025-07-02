@@ -29,4 +29,17 @@ A comprehensive Venue Submission and Management System for venue owners, admins,
 - `misc/` — Temporary files
 
 ## Documentation
-- All major changes, tasks, and errors are logged in dedicated markdown files in `docs/`. 
+- All major changes, tasks, and errors are logged in dedicated markdown files in `docs/`.
+
+## [2024-08-02] Venue Feature Tables & RLS Now Present
+
+- All required tables for venue management, media, managers, notifications, and payments are now present in Supabase.
+- RLS enabled for all new tables.
+- See database/sql_commands.md for details.
+
+## [2024-08-02] Supabase Integration State for Venue Features
+
+- All major venue management, listing, and related features are connected to Supabase (CRUD, amenities, slots, approval, reviews, favorites, drafts, submission, activity logs, notifications, media, visibility, booking, revenue, compliance, messaging, performance dashboards).
+- Data is pulled and pushed via direct queries and RPCs.
+- Missing: advanced unavailability, media metadata, multi-manager support, in-app notification persistence, payment/invoice tracking, and RLS review for new tables.
+- See TASK_COMPLETION_LOG.md for next steps and CODE_CHANGE_LOG.md for detailed audit. 

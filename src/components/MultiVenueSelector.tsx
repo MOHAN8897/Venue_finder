@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Venue } from '../lib/venueService';
@@ -16,6 +16,45 @@ interface MultiVenueSelectorProps {
   onAddNewVenue?: () => void;
 }
 
+const VenueListItem = React.memo(({ venue, selectedVenueId, handleVenueSelect }: { venue: Venue, selectedVenueId: string, handleVenueSelect: (venueId: string) => void }) => (
+  <div
+    key={venue.id}
+    onClick={() => handleVenueSelect(venue.id)}
+    className={`p-3 cursor-pointer transition-colors ${
+      venue.id === selectedVenueId
+        ? 'bg-blue-50 border-l-4 border-blue-500'
+        : 'hover:bg-gray-50'
+    }`}
+  >
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+          venue.id === selectedVenueId ? 'bg-blue-100' : 'bg-gray-100'
+        }`}>
+          <Building2 className={`h-4 w-4 ${
+            venue.id === selectedVenueId ? 'text-blue-600' : 'text-gray-600'
+          }`} />
+        </div>
+        <div>
+          <div className={`font-medium ${
+            venue.id === selectedVenueId ? 'text-blue-900' : 'text-gray-900'
+          }`}>
+            {venue.name}
+          </div>
+          <div className="text-sm text-gray-500">
+            {venue.city}, {venue.state} • {venue.type}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        {venue.id === selectedVenueId && (
+          <CheckCircle className="h-4 w-4 text-blue-600" />
+        )}
+      </div>
+    </div>
+  </div>
+));
+
 const MultiVenueSelector: React.FC<MultiVenueSelectorProps> = ({
   venues,
   selectedVenueId,
@@ -24,12 +63,12 @@ const MultiVenueSelector: React.FC<MultiVenueSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const selectedVenue = venues.find(v => v.id === selectedVenueId);
-
-  const handleVenueSelect = (venueId: string) => {
+  const memoizedVenues = useMemo(() => venues, [venues]);
+  const selectedVenue = useMemo(() => memoizedVenues.find(v => v.id === selectedVenueId), [memoizedVenues, selectedVenueId]);
+  const handleVenueSelect = useCallback((venueId: string) => {
     onVenueSelect(venueId);
     setIsOpen(false);
-  };
+  }, [onVenueSelect]);
 
   return (
     <div className="relative">
@@ -60,48 +99,18 @@ const MultiVenueSelector: React.FC<MultiVenueSelectorProps> = ({
         <Card className="absolute top-full left-0 right-0 mt-2 z-50 shadow-lg">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-700">
-              Your Venues ({venues.length})
+              Your Venues ({memoizedVenues.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-64 overflow-y-auto">
-              {venues.map((venue) => (
-                <div
+              {memoizedVenues.map((venue) => (
+                <VenueListItem
                   key={venue.id}
-                  onClick={() => handleVenueSelect(venue.id)}
-                  className={`p-3 cursor-pointer transition-colors ${
-                    venue.id === selectedVenueId
-                      ? 'bg-blue-50 border-l-4 border-blue-500'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        venue.id === selectedVenueId ? 'bg-blue-100' : 'bg-gray-100'
-                      }`}>
-                        <Building2 className={`h-4 w-4 ${
-                          venue.id === selectedVenueId ? 'text-blue-600' : 'text-gray-600'
-                        }`} />
-                      </div>
-                      <div>
-                        <div className={`font-medium ${
-                          venue.id === selectedVenueId ? 'text-blue-900' : 'text-gray-900'
-                        }`}>
-                          {venue.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {venue.city}, {venue.state} • {venue.type}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {venue.id === selectedVenueId && (
-                        <CheckCircle className="h-4 w-4 text-blue-600" />
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  venue={venue}
+                  selectedVenueId={selectedVenueId}
+                  handleVenueSelect={handleVenueSelect}
+                />
               ))}
             </div>
 

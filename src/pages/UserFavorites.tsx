@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDatabase } from '../hooks/useDatabase';
@@ -14,6 +14,57 @@ import {
 import AuthWrapper from '../components/AuthWrapper';
 import LoadingSpinner from '../components/LoadingSpinner';
 
+// Memoized Favorite Card
+const FavoriteCard = React.memo(({ favorite, handleRemoveFavorite }: { favorite: UserFavorite, handleRemoveFavorite: (venueId: string) => void }) => (
+  <div
+    key={favorite.id}
+    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+  >
+    {/* Venue Image */}
+    <div className="relative h-48 bg-gray-200">
+      {favorite.venue?.image_urls?.[0] ? (
+        <img
+          src={favorite.venue.image_urls[0]}
+          alt={favorite.venue.name}
+          loading="lazy"
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <MapPin className="h-12 w-12 text-gray-400" />
+        </div>
+      )}
+      <button
+        onClick={() => handleRemoveFavorite(favorite.venue_id)}
+        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+        title="Remove from favorites"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+    {/* Venue Info */}
+    <div className="p-4">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        {favorite.venue?.name || 'Unknown Venue'}
+      </h3>
+      <div className="flex items-center text-gray-600 mb-2">
+        <MapPin className="h-4 w-4 mr-1" />
+        <span className="text-sm">
+          {favorite.venue?.address || 'Address not available'}
+        </span>
+      </div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center">
+          <Star className="h-4 w-4 text-yellow-500 mr-1" />
+          <span className="text-sm text-gray-600">
+            {favorite.venue?.rating || 0} (0 reviews)
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+));
+
 const UserFavorites: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const { isConnected, isLoading: dbLoading, refreshConnection } = useDatabase();
@@ -21,6 +72,9 @@ const UserFavorites: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
+
+  const memoizedFavorites = useMemo(() => favorites, [favorites]);
+  const memoizedHandleRemoveFavorite = useCallback(handleRemoveFavorite, [favorites]);
 
   useEffect(() => {
     if (authLoading || dbLoading) return; // Wait for auth and db to finish
@@ -153,68 +207,12 @@ const UserFavorites: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {favorites.map((favorite) => (
-              <div
+            {memoizedFavorites.map((favorite) => (
+              <FavoriteCard
                 key={favorite.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-              >
-                      {/* Venue Image */}
-                      <div className="relative h-48 bg-gray-200">
-                        {favorite.venue?.image_urls?.[0] ? (
-                          <img
-                            src={favorite.venue.image_urls[0]}
-                            alt={favorite.venue.name}
-                            className="w-full h-full object-cover"
-                  />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <MapPin className="h-12 w-12 text-gray-400" />
-                          </div>
-                        )}
-                  <button
-                          onClick={() => handleRemoveFavorite(favorite.venue_id)}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                          title="Remove from favorites"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                      {/* Venue Info */}
-                      <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                          {favorite.venue?.name || 'Unknown Venue'}
-                  </h3>
-                  
-                        <div className="flex items-center text-gray-600 mb-2">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span className="text-sm">
-                            {favorite.venue?.address || 'Address not available'}
-                    </span>
-                  </div>
-                  
-                        <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center">
-                            <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                      <span className="text-sm text-gray-600">
-                              {favorite.venue?.rating || 0} (0 reviews)
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-blue-600">
-                            ${favorite.venue?.hourly_rate || 0}/hour
-                    </span>
-                    <Link
-                      to={`/venue/${favorite.venue_id}`}
-                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      View Details
-                    </Link>
-                  </div>
-                </div>
-              </div>
+                favorite={favorite}
+                handleRemoveFavorite={memoizedHandleRemoveFavorite}
+              />
             ))}
           </div>
         )}

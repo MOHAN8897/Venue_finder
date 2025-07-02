@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Button } from './ui/button';
 import { Bell, CheckCheck } from 'lucide-react';
@@ -20,8 +20,26 @@ const fakeNotifications: Notification[] = [
     { id: '4', type: 'booking', message: 'Booking for "Garden Patio" was cancelled by the user.', timestamp: '1d ago', isRead: true },
 ];
 
+const NotificationItem = React.memo(({ notification }: { notification: Notification }) => {
+    return (
+        <div className={`p-4 border-b text-sm flex items-start space-x-3 ${!notification.isRead ? 'bg-blue-50' : 'bg-white'}`}>
+            <div>{/* Icon can go here */}</div>
+            <div className="flex-1">
+                <p className="text-gray-800">{notification.message}</p>
+                <p className="text-xs text-gray-500 mt-1">{notification.timestamp}</p>
+            </div>
+        </div>
+    );
+});
+
 const NotificationPanel: React.FC = () => {
-    const unreadCount = fakeNotifications.filter(n => !n.isRead).length;
+    const memoizedNotifications = useMemo(() => fakeNotifications, []);
+    const unreadCount = useMemo(() => memoizedNotifications.filter(n => !n.isRead).length, [memoizedNotifications]);
+    const handleMarkAllAsRead = useCallback(() => {
+        // In a real app, this would update state/service
+        // For now, just log
+        console.log('Mark all as read');
+    }, []);
 
     return (
         <Popover>
@@ -38,18 +56,12 @@ const NotificationPanel: React.FC = () => {
             <PopoverContent className="w-80 p-0">
                 <div className="p-4 font-semibold border-b">Notifications</div>
                 <div className="max-h-96 overflow-y-auto">
-                    {fakeNotifications.map(notification => (
-                        <div key={notification.id} className={`p-4 border-b text-sm flex items-start space-x-3 ${!notification.isRead ? 'bg-blue-50' : 'bg-white'}`}>
-                            <div>{/* Icon can go here */}</div>
-                            <div className="flex-1">
-                                <p className="text-gray-800">{notification.message}</p>
-                                <p className="text-xs text-gray-500 mt-1">{notification.timestamp}</p>
-                            </div>
-                        </div>
+                    {memoizedNotifications.map(notification => (
+                        <NotificationItem key={notification.id} notification={notification} />
                     ))}
                 </div>
-                 <div className="p-2 border-t flex justify-center">
-                    <Button variant="link" size="sm" className="text-xs">
+                <div className="p-2 border-t flex justify-center">
+                    <Button variant="link" size="sm" className="text-xs" onClick={handleMarkAllAsRead}>
                         <CheckCheck className="mr-2 h-4 w-4"/>
                         Mark all as read
                     </Button>

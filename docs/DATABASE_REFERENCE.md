@@ -142,6 +142,8 @@ CREATE POLICY "Users can delete their own bookings" ON public.user_bookings
 - total_reviews (integer)
 - created_at (timestamptz)
 - updated_at (timestamptz)
+- approved_at (timestamp)
+- rejected_at (timestamp)
 
 ### user_favorites
 - id (uuid, PK)
@@ -250,4 +252,54 @@ CREATE POLICY "Users can delete their own bookings" ON public.user_bookings
 ---
 
 # Use this file as a reference for all backend/frontend sync, object key mapping, and debugging.
-# If you add new columns, functions, or change object keys, update this file! 
+# If you add new columns, functions, or change object keys, update this file!
+
+## [2024-08-02] Database Schema, Functions, and RLS Policies Audit
+
+### Tables
+- **profiles**: User profiles, owner/admin roles, RLS enabled.
+- **venues**: Venue listings, all fields for List/Manage Venue, RLS enabled (owners manage their own, public can view approved/active).
+- **venue_approval_logs**: Audit log for venue approval/rejection, RLS enabled (super admin only).
+- **user_favorites**: User favorite venues, RLS enabled.
+- **user_reviews**: Venue reviews, RLS enabled.
+- **user_bookings**: Venue bookings, RLS enabled.
+- **venue_drafts**: Drafts for venue submission, RLS enabled.
+- **activity_logs**: General activity logs, RLS enabled.
+- **contact_messages**: User contact form, RLS enabled.
+- **Other tables**: amenities, payments, notifications, etc. (all with RLS as per docs).
+
+### Functions
+- **submit_venue(venue_data jsonb)**: Inserts venue, logs submission, RLS enforced.
+- **approve_venue(venue_uuid, admin_notes)**: Approves venue, updates user role, logs action.
+- **reject_venue(venue_uuid, reason, admin_notes)**: Rejects venue, logs action.
+- **update_venue_submission, delete_venue_submission**: For editing/deleting pending venues.
+- **Other utility/auth functions**: As per sql_commands.md.
+
+### RLS Policies
+- RLS enabled for all user/venue-specific tables.
+- Owners can manage their own venues; public can view approved/active venues.
+- Super admins have access to approval logs.
+- All policies are documented in sql_commands.md and local_schema.sql.
+
+### Notes
+- This file is the single source of truth for the current database structure, functions, and security policies.
+- All future migrations/changes must be logged here before being applied.
+
+## [2024-08-02] Venue Media & Amenities DB Integration
+- On venue submission, all images/videos are saved to venue_media table (with type, order, alt_text, metadata).
+- Facilities/amenities are saved to venue_amenities table (and amenities table if new).
+- See code for default structure and logic.
+
+# Venues Table (Updated 2024-08-01)
+
+- Columns: id (uuid), name (text), type (venue_type), user_id (uuid), status (venue_status: pending, approved, rejected), approved_at (timestamp), rejected_at (timestamp)
+- RLS: Only authenticated users can insert/select their own venues.
+- Submission logic:
+  - User can only submit one venue if status is pending.
+  - If status is rejected, user can resubmit.
+  - If status is approved, user can submit more venues.
+- Status changes (by Super Admin):
+  - If status changes to 'approved', user sees 'Manage Your Venues' and can submit more.
+  - If status changes to 'rejected', user can resubmit.
+- These columns are used to display approval/rejection times in the Super Admin dashboard and user UI.
+- See CODE_CHANGE_LOG.md for SQL commands and policy details. 

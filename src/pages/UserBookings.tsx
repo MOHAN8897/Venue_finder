@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDatabase } from '../hooks/useDatabase';
@@ -6,22 +6,65 @@ import { bookingsService, UserBooking } from '../lib/userService';
 import { 
   Calendar, 
   MapPin, 
-  Clock, 
-  DollarSign, 
   CheckCircle, 
   XCircle, 
   AlertCircle,
   ArrowLeft,
-  RefreshCw,
-  Eye
+  RefreshCw
 } from 'lucide-react';
 import AuthWrapper from '../components/AuthWrapper';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+// Memoized Booking Card
+const BookingCard = React.memo(({ booking, getStatusColor, getStatusIcon, formatDate }: { booking: UserBooking, getStatusColor: (status: string) => string, getStatusIcon: (status: string) => JSX.Element, formatDate: (date: string) => string }) => (
+  <div
+    key={booking.id}
+    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+  >
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+      {/* Booking Info */}
+      <div className="flex-1">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {booking.venue?.name || 'Unknown Venue'}
+            </h3>
+            <div className="flex items-center text-gray-600 mb-2">
+              <MapPin className="h-4 w-4 mr-1" />
+              <span className="text-sm">
+                {booking.venue?.address || 'Address not available'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-sm text-gray-500">{formatDate(booking.start_date)}</span>
+          <span className="text-sm text-gray-500">to</span>
+          <span className="text-sm text-gray-500">{formatDate(booking.end_date)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>{booking.status}</span>
+          {getStatusIcon(booking.status)}
+        </div>
+      </div>
+      {/* Price */}
+      <div className="mt-4 lg:mt-0 lg:ml-8 flex flex-col items-end">
+        <span className="text-lg font-bold text-blue-600">₹{booking.total_price}</span>
+        <span className="text-xs text-gray-500">Total</span>
+      </div>
+    </div>
+  </div>
+));
+
+const PAGE_SIZE = 10;
 
 const UserBookings: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const { isConnected, isLoading: dbLoading, refreshConnection } = useDatabase();
   const [bookings, setBookings] = useState<UserBooking[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -38,16 +81,17 @@ const UserBookings: React.FC = () => {
       return;
     }
     if (!dataLoaded) {
-    loadBookings();
+      loadBookings();
     }
-  }, [user, authLoading, dbLoading, isConnected, dataLoaded]);
+  }, [user, authLoading, dbLoading, isConnected, dataLoaded, page, pageSize]);
 
   const loadBookings = async () => {
     try {
       setLoading(true);
       setError('');
-      const bookingsData = await bookingsService.getUserBookings();
+      const { bookings: bookingsData, total } = await bookingsService.getUserBookings(page, pageSize);
       setBookings(bookingsData || []);
+      setTotal(total);
       setDataLoaded(true);
     } catch (err) {
       console.error('Error loading bookings:', err);
@@ -104,6 +148,19 @@ const UserBookings: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const memoizedBookings = useMemo(() => bookings, [bookings]);
+  const memoizedGetStatusColor = useCallback(getStatusColor, []);
+  const memoizedGetStatusIcon = useCallback(getStatusIcon, []);
+  const memoizedFormatDate = useCallback(formatDate, []);
+
+  // Pagination controls
+  const totalPages = Math.ceil(total / pageSize);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setPage(newPage);
+    setDataLoaded(false);
   };
 
   return (
@@ -179,80 +236,45 @@ const UserBookings: React.FC = () => {
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
-            {bookings.map((booking) => (
-              <div
+          <div className="grid gap-6">
+            {memoizedBookings.map((booking) => (
+              <BookingCard
                 key={booking.id}
-                      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-              >
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                        {/* Booking Info */}
-                        <div className="flex-1">
-                  <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                {booking.venue?.name || 'Unknown Venue'}
-                      </h3>
-                      <div className="flex items-center text-gray-600 mb-2">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        <span className="text-sm">
-                                  {booking.venue?.address || 'Address not available'}
-                        </span>
-                      </div>
-                    </div>
-                            <div className={`flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
-                              {getStatusIcon(booking.status)}
-                              <span className="ml-1 capitalize">{booking.status}</span>
-                    </div>
-                  </div>
-                  
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">Start Time</p>
-                                <p className="text-sm text-gray-600">{formatDate(booking.start_date)}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">End Time</p>
-                                <p className="text-sm text-gray-600">{formatDate(booking.end_date)}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center">
-                              <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">Total Price</p>
-                                <p className="text-sm text-gray-600">${booking.total_price}</p>
-                    </div>
-                    </div>
-                  </div>
-                  
-                          {booking.notes && (
-                            <div className="mb-4">
-                              <p className="text-sm font-medium text-gray-900 mb-1">Notes</p>
-                              <p className="text-sm text-gray-600">{booking.notes}</p>
-                    </div>
-                          )}
-                    
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-gray-500">
-                              Booking ID: {booking.id}
-                            </div>
-                    <Link
-                      to={`/venue/${booking.venue_id}`}
-                              className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                              <Eye className="h-4 w-4 mr-1" />
-                      View Venue
-                    </Link>
-                          </div>
-                  </div>
-                </div>
-              </div>
+                booking={booking}
+                getStatusColor={memoizedGetStatusColor}
+                getStatusIcon={memoizedGetStatusIcon}
+                formatDate={memoizedFormatDate}
+              />
             ))}
+          </div>
+        )}
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-center mt-8 gap-2">
+            <button
+              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                className={`px-3 py-1 rounded border ${p === page ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                onClick={() => handlePageChange(p)}
+                disabled={p === page}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
           </div>
         )}
             </>

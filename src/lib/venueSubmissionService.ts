@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { EmailService } from './emailService';
+import { convertToWebP } from '../utils/cropImage';
 
 export interface VenueSubmissionData {
   name: string;
@@ -67,9 +68,26 @@ export class VenueSubmissionService {
    * Submit a new venue for review
    */
   static async submitVenue(venueData: VenueSubmissionData): Promise<SubmissionResponse> {
+    // Preprocess data for type safety
+    const processedVenueData = {
+      ...venueData,
+      type: venueData.type, // already validated as enum string
+      capacity: venueData.capacity === '' ? null : Number(venueData.capacity),
+      hourly_rate: venueData.hourly_rate === '' ? null : Number(venueData.hourly_rate),
+      daily_rate: venueData.daily_rate === '' ? null : Number(venueData.daily_rate),
+      latitude: venueData.latitude === '' ? null : Number(venueData.latitude),
+      longitude: venueData.longitude === '' ? null : Number(venueData.longitude),
+      specific_options: venueData.specific_options,
+      contact_name: venueData.contact_name,
+      contact_phone: venueData.contact_phone,
+      contact_email: venueData.contact_email,
+      google_maps_link: venueData.google_maps_link,
+      images: venueData.images,
+      videos: venueData.videos
+    };
     try {
       const { data, error } = await supabase.rpc('submit_venue', {
-        venue_data: venueData
+        venue_data: processedVenueData
       });
 
       if (error) {
@@ -206,30 +224,42 @@ export class VenueSubmissionService {
   }
 
   /**
-   * Upload files to Supabase storage
+   * Upload files to Supabase storage with error handling
+   * Returns an array of { url, success, error } for each file
    */
-  static async uploadFiles(files: File[], bucket: string): Promise<string[]> {
-    const urls: string[] = [];
-    
+  static async uploadFiles(files: File[], bucket: string): Promise<{ url: string | null; success: boolean; error?: string }[]> {
+    const results: { url: string | null; success: boolean; error?: string }[] = [];
     for (const file of files) {
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.name}`;
-      const { error } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file);
-      
-      if (error) {
-        console.error('Upload error:', error);
-        throw error;
+      let uploadFile = file;
+      // Convert image files to WebP for optimization
+      if (file.type.startsWith('image/')) {
+        try {
+          const webpBlob = await convertToWebP(file);
+          uploadFile = new File([webpBlob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+        } catch (err) {
+          // Fallback to original if conversion fails
+          console.error('WebP conversion failed, uploading original:', err);
+        }
       }
-      
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${uploadFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, uploadFile);
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        results.push({ url: null, success: false, error: uploadError.message });
+        continue;
+      }
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
         .getPublicUrl(fileName);
-      
-      urls.push(publicUrl);
+      if (!publicUrl) {
+        results.push({ url: null, success: false, error: 'Failed to get public URL' });
+      } else {
+        results.push({ url: publicUrl, success: true });
+      }
     }
-    
-    return urls;
+    return results;
   }
 
   /**
@@ -315,6 +345,77 @@ export class VenueSubmissionService {
         return 'text-red-600 bg-red-100';
       default:
         return 'text-gray-600 bg-gray-100';
+    }
+  }
+
+  /**
+   * Save media (images/videos) for a venue to the venue_media table
+   * @param venueId - The ID of the venue
+   * @param media - Array of media objects: { url, type, order_index, alt_text, metadata }
+   */
+  static async saveVenueMedia(venueId: string, media: { url: string; type: string; order_index: number; alt_text?: string; metadata?: Record<string, unknown> }[]): Promise<void> {
+    for (const [index, m] of media.entries()) {
+      await supabase.from('venue_media').insert({
+        venue_id: venueId,
+        url: m.url,
+        type: m.type,
+        order_index: m.order_index ?? index,
+        alt_text: m.alt_text ?? '',
+        metadata: m.metadata
+      });
+    }
+  }
+
+  /**
+   * Save amenities for a venue to the venue_amenities table
+   * @param venueId - The ID of the venue
+   * @param amenities - Array of amenity names (strings)
+   *
+   * This will ensure each amenity exists in the amenities table, then insert into venue_amenities.
+   */
+  static async saveVenueAmenities(venueId: string, amenities: string[]): Promise<void> {
+    for (const amenityName of amenities) {
+      // Ensure amenity exists in amenities table
+      const { data: amenity } = await supabase
+        .from('amenities')
+        .select('id')
+        .eq('name', amenityName)
+        .single();
+      let amenityId;
+      if (!amenity) {
+        // Insert new amenity
+        const { data: inserted } = await supabase
+          .from('amenities')
+          .insert({ name: amenityName })
+          .select('id')
+          .single();
+        amenityId = inserted?.id;
+      } else {
+        amenityId = amenity.id;
+      }
+      if (amenityId) {
+        await supabase.from('venue_amenities').insert({
+          venue_id: venueId,
+          amenity_id: amenityId
+        });
+      }
+    }
+  }
+
+  /**
+   * Get the user's venue submission status (pending, approved, rejected, or none)
+   */
+  static async getUserVenueSubmissionStatus(): Promise<string> {
+    try {
+      const { data, error } = await supabase.rpc('get_user_venue_submission_status');
+      if (error) {
+        console.error('Error fetching venue submission status:', error);
+        return 'none';
+      }
+      return data || 'none';
+    } catch (error) {
+      console.error('Error fetching venue submission status:', error);
+      return 'none';
     }
   }
 } 

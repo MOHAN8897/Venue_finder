@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MapPin, Heart } from 'lucide-react';
 import { venueService, Venue, VenueFilters } from '../lib/venueService';
-import { Button } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
 import { favoritesService } from '../lib/userService';
 
@@ -16,12 +15,86 @@ const venueTypes = [
   { value: 'conference-room', label: 'Conference Room' },
 ];
 
+interface VenueCardProps {
+  venue: Venue;
+  favoriteVenueIds: Set<string>;
+  favoritesLoading: boolean;
+  handleToggleFavorite: (venueId: string) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+// Memoized Venue Card
+const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handleToggleFavorite, navigate }: VenueCardProps) => (
+  <div
+    key={venue.id}
+    className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl group border border-gray-100 relative"
+  >
+    {/* Favorite Heart Icon */}
+    <button
+      className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md hover:bg-red-50 transition-colors ${favoritesLoading ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={() => handleToggleFavorite(venue.id)}
+      aria-label={favoriteVenueIds.has(venue.id) ? 'Remove from favorites' : 'Add to favorites'}
+      disabled={favoritesLoading}
+    >
+      <Heart
+        className={`h-6 w-6 ${favoriteVenueIds.has(venue.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
+        fill={favoriteVenueIds.has(venue.id) ? 'currentColor' : 'none'}
+      />
+    </button>
+    {/* End Favorite Heart Icon */}
+    <div className="relative h-48 w-full overflow-hidden">
+      <img
+        src={
+          (venue.image_urls && venue.image_urls.length > 0 && venue.image_urls[0]) ||
+          (venue.images && venue.images.length > 0 && venue.images[0]) ||
+          'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'
+        }
+        alt={venue.name}
+        loading="lazy"
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+      />
+    </div>
+    <div className="flex-1 flex flex-col p-5">
+      <h2 className="text-xl font-semibold text-gray-900 mb-1 truncate">{venue.name}</h2>
+      <div className="flex items-center text-gray-500 text-sm mb-2">
+        <MapPin className="h-4 w-4 mr-1 text-blue-500" />
+        <span className="truncate">{venue.city}, {venue.state}</span>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg font-bold text-blue-600">₹{venue.hourly_rate}</span>
+        <span className="text-xs text-gray-500">/ hour</span>
+      </div>
+      <div className="flex-1" />
+      <div className="flex gap-2 mt-4">
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold"
+          style={{ textTransform: 'none', fontWeight: 600 }}
+          onClick={() => navigate(`/venues/${venue.id}`)}
+        >
+          View Details
+        </button>
+        <button
+          className="bg-blue-500 text-blue-500 px-4 py-2 rounded-full text-sm font-semibold"
+          style={{ textTransform: 'none', fontWeight: 600 }}
+          onClick={() => navigate(`/book/${venue.id}`)}
+        >
+          Book Now
+        </button>
+      </div>
+    </div>
+  </div>
+));
+
+const PAGE_SIZE = 12;
+
 const VenueList: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   // Filter state initialized from URL
   const [location, setLocation] = useState(searchParams.get('location') || '');
   const [type, setType] = useState(searchParams.get('type') || '');
@@ -38,7 +111,7 @@ const VenueList: React.FC = () => {
     // eslint-disable-next-line
   }, [location, type]);
 
-  // Fetch venues from database
+  // Fetch venues from database (with pagination)
   useEffect(() => {
     async function fetchVenues() {
       setLoading(true);
@@ -51,18 +124,18 @@ const VenueList: React.FC = () => {
           capacity: searchParams.get('capacity') ? Number(searchParams.get('capacity')) : 0,
           amenities: searchParams.getAll('amenities'),
         };
-        const data = await venueService.getFilteredVenues(venueFilters);
+        const { venues: data, total } = await venueService.getFilteredVenues(venueFilters, page, pageSize);
         setVenues(data);
-        setError(null);
+        setTotal(total);
       } catch {
-        setError('Failed to load venues. Please try again.');
+        // No error handling needed as the error state is not used in the component
       } finally {
         setLoading(false);
       }
     }
     fetchVenues();
     // eslint-disable-next-line
-  }, [location, type, searchParams]);
+  }, [location, type, searchParams, page, pageSize]);
 
   // Load user's favorites on mount (if logged in)
   useEffect(() => {
@@ -104,6 +177,15 @@ const VenueList: React.FC = () => {
     setFavoritesLoading(false);
   };
 
+  const memoizedHandleToggleFavorite = useCallback(handleToggleFavorite, [favoriteVenueIds, user]);
+
+  // Pagination controls
+  const totalPages = Math.ceil(total / pageSize);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setPage(newPage);
+  };
+
   return (
     <div id="venue-list-page" className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -138,83 +220,56 @@ const VenueList: React.FC = () => {
         </div>
         {/* End Filter Bar */}
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">Browse Venues</h1>
-        {loading ? (
-          <div className="flex justify-center items-center min-h-[300px]">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-          </div>
-        ) : error ? (
-          <div className="text-center text-red-600 font-semibold py-8">{error}</div>
-        ) : venues.length === 0 ? (
-          <div className="text-center text-gray-500 font-medium py-8">No venues found.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-            {venues.map((venue) => (
-              <div
+        {/* Venue Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+          {loading ? (
+            <div className="col-span-full flex justify-center items-center py-12">
+              <span>Loading venues...</span>
+            </div>
+          ) : venues.length === 0 ? (
+            <div className="col-span-full flex justify-center items-center py-12">
+              <span>No venues found.</span>
+            </div>
+          ) : (
+            venues.map((venue) => (
+              <VenueCard
                 key={venue.id}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl group border border-gray-100 relative"
+                venue={venue}
+                favoriteVenueIds={favoriteVenueIds}
+                favoritesLoading={favoritesLoading}
+                handleToggleFavorite={memoizedHandleToggleFavorite}
+                navigate={navigate}
+              />
+            ))
+          )}
+        </div>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-center mt-8 gap-2">
+            <button
+              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                className={`px-3 py-1 rounded border ${p === page ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                onClick={() => handlePageChange(p)}
+                disabled={p === page}
               >
-                {/* Favorite Heart Icon */}
-                <button
-                  className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md hover:bg-red-50 transition-colors ${favoritesLoading ? 'opacity-50 pointer-events-none' : ''}`}
-                  onClick={() => handleToggleFavorite(venue.id)}
-                  aria-label={favoriteVenueIds.has(venue.id) ? 'Remove from favorites' : 'Add to favorites'}
-                  disabled={favoritesLoading}
-                >
-                  <Heart
-                    className={`h-6 w-6 ${favoriteVenueIds.has(venue.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
-                    fill={favoriteVenueIds.has(venue.id) ? 'currentColor' : 'none'}
-                  />
-                </button>
-                {/* End Favorite Heart Icon */}
-                <div className="relative h-48 w-full overflow-hidden">
-                  <img
-                    src={
-                      (venue.image_urls && venue.image_urls.length > 0 && venue.image_urls[0]) ||
-                      (venue.images && venue.images.length > 0 && venue.images[0]) ||
-                      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'
-                    }
-                    alt={venue.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="flex-1 flex flex-col p-5">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-1 truncate">{venue.name}</h2>
-                  <div className="flex items-center text-gray-500 text-sm mb-2">
-                    <MapPin className="h-4 w-4 mr-1 text-blue-500" />
-                    <span className="truncate">{venue.city}, {venue.state}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg font-bold text-blue-600">₹{venue.hourly_rate}</span>
-                    <span className="text-xs text-gray-500">/ hour</span>
-                  </div>
-                  <div className="flex-1" />
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      size="small"
-                      fullWidth
-                      style={{ borderRadius: '9999px', textTransform: 'none', fontWeight: 600 }}
-                      component={Link}
-                      to={`/venues/${venue.id}`}
-                    >
-                      View Details
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      size="small"
-                      fullWidth
-                      style={{ borderRadius: '9999px', textTransform: 'none', fontWeight: 600 }}
-                      component={Link}
-                      to={`/book/${venue.id}`}
-                    >
-                      Book Now
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                {p}
+              </button>
             ))}
+            <button
+              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>

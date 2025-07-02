@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDatabase } from '../hooks/useDatabase';
 import { useNavigate } from 'react-router-dom';
@@ -10,14 +10,9 @@ import {
 } from '../lib/userService';
 import { 
   User, 
-  Calendar, 
   Heart, 
-  MapPin, 
-  Star, 
-  Building2,
   ArrowRight,
-  RefreshCw,
-  AlertCircle
+  RefreshCw
 } from 'lucide-react';
 import AuthWrapper from '../components/AuthWrapper';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -38,9 +33,31 @@ interface RawBooking {
   start_date?: string;
 }
 
+// Memoized Recent Booking Item
+const RecentBookingItem = React.memo(({ booking }: { booking: RecentBooking }) => (
+  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+    <div>
+      <div className="font-semibold text-gray-900">{booking.venue_name}</div>
+      <div className="text-xs text-gray-500">{booking.booking_date}</div>
+    </div>
+    <ArrowRight className="h-5 w-5 text-blue-500" />
+  </div>
+));
+
+// Memoized Favorite Item
+const FavoriteItem = React.memo(({ favorite }: { favorite: UserFavorite }) => (
+  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+    <div>
+      <div className="font-semibold text-gray-900">{favorite.venue?.name || ''}</div>
+      <div className="text-xs text-gray-500">{favorite.venue?.address || ''}</div>
+    </div>
+    <Heart className="h-5 w-5 text-red-500" />
+  </div>
+));
+
 const UserDashboard: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
-  const { isConnected, isLoading: dbLoading, error: dbError, refreshConnection } = useDatabase();
+  const { isConnected, isLoading: dbLoading, refreshConnection } = useDatabase();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [dataLoading, setDataLoading] = useState(false);
@@ -66,6 +83,9 @@ const UserDashboard: React.FC = () => {
     booking_reminders: true,
     new_venue_alerts: true
   });
+
+  const memoizedRecentBookings = useMemo(() => dashboardStats.recentBookings, [dashboardStats.recentBookings]);
+  const memoizedRecentFavorites = useMemo(() => dashboardStats.recentFavorites, [dashboardStats.recentFavorites]);
 
   useEffect(() => {
     if (authLoading || dbLoading) return; // Wait for auth and db to finish
@@ -174,127 +194,60 @@ const UserDashboard: React.FC = () => {
               <p className="text-sm font-medium text-gray-600">Total Bookings</p>
               <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalBookings}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Calendar className="h-6 w-6 text-blue-600" />
-            </div>
           </div>
         </div>
-
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Favorites</p>
+              <p className="text-sm font-medium text-gray-600">Total Favorites</p>
               <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalFavorites}</p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-              <Heart className="h-6 w-6 text-red-600" />
-            </div>
           </div>
         </div>
-
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Reviews</p>
+              <p className="text-sm font-medium text-gray-600">Total Reviews</p>
               <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalReviews}</p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <Star className="h-6 w-6 text-yellow-600" />
-            </div>
           </div>
         </div>
-
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Listed Venues</p>
+              <p className="text-sm font-medium text-gray-600">Total Venues</p>
               <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalVenues}</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate('/venues')}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-            >
-              <div className="flex items-center">
-                <MapPin className="h-5 w-5 mr-3" />
-                <span>Browse Venues</span>
-              </div>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => navigate('/list-venue')}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
-            >
-              <div className="flex items-center">
-                <Building2 className="h-5 w-5 mr-3" />
-                <span>List Your Venue</span>
-              </div>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            {dashboardStats.totalVenues > 0 && (
-              <button
-                onClick={() => navigate('/manage-venues')}
-                className="w-full flex items-center justify-between p-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-              >
-                <div className="flex items-center">
-                  <Building2 className="h-5 w-5 mr-3" />
-                  <span>Manage My Venues ({dashboardStats.totalVenues})</span>
-                </div>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            )}
-            <button
-              onClick={() => navigate('/bookings')}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-            >
-              <div className="flex items-center">
-                <Calendar className="h-5 w-5 mr-3" />
-                <span>View Bookings</span>
-              </div>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => navigate('/favorites')}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-            >
-              <div className="flex items-center">
-                <Heart className="h-5 w-5 mr-3" />
-                <span>My Favorites</span>
-              </div>
-              <ArrowRight className="h-4 w-4" />
-            </button>
+      {/* Recent Bookings */}
+      <div>
+        <h3 className="text-lg font-semibold mb-2">Recent Bookings</h3>
+        {dashboardStats.recentBookings.length === 0 ? (
+          <div className="text-gray-500 text-sm">No bookings available.</div>
+        ) : (
+          <div className="space-y-2">
+            {memoizedRecentBookings.map((booking, idx) => (
+              <RecentBookingItem key={booking.booking_id || idx} booking={booking} />
+            ))}
           </div>
-        </div>
+        )}
+      </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            {dashboardStats.recentBookings.length > 0 ? (
-              dashboardStats.recentBookings.slice(0, 3).map((booking, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div>
-                    <p className="font-medium text-gray-900">{booking.venue_name}</p>
-                    <p className="text-sm text-gray-600">{new Date(booking.booking_date).toLocaleDateString()}</p>
-                  </div>
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-500 text-center py-4">No recent bookings</p>
-            )}
+      {/* Recent Favorites */}
+      <div>
+        <h3 className="text-lg font-semibold mb-2">Recent Favorites</h3>
+        {dashboardStats.recentFavorites.length === 0 ? (
+          <div className="text-gray-500 text-sm">No favorites available.</div>
+        ) : (
+          <div className="space-y-2">
+            {memoizedRecentFavorites.map((favorite, idx) => (
+              <FavoriteItem key={favorite.id || idx} favorite={favorite} />
+            ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from './ui/dialog';
@@ -24,6 +24,25 @@ const fakeOffers: Offer[] = [
     { id: 3, title: 'Expired Offer', code: 'EXPIRED10', type: 'percentage', value: 10, isActive: false },
 ];
 
+const OfferCard = React.memo(({ offer }: { offer: Offer }) => (
+    <Card className="flex justify-between items-center p-4">
+        <div className="flex items-center space-x-4">
+            <div className={`p-2 rounded-full ${offer.type === 'percentage' ? 'bg-blue-100' : 'bg-green-100'}`}>
+                {offer.type === 'percentage' ? <Percent className="h-5 w-5 text-blue-600"/> : <Tag className="h-5 w-5 text-green-600"/>}
+            </div>
+            <div>
+                <p className="font-semibold">{offer.title}</p>
+                <p className="text-sm text-gray-500">Code: {offer.code}</p>
+            </div>
+        </div>
+        <div>
+            <Badge variant={offer.isActive ? 'default' : 'destructive'}>
+                {offer.isActive ? 'Active' : 'Inactive'}
+            </Badge>
+        </div>
+    </Card>
+));
+
 const OfferManager: React.FC = () => {
     const [offers, setOffers] = useState(fakeOffers);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -31,13 +50,14 @@ const OfferManager: React.FC = () => {
     // Form state for new offer
     const [newOffer, setNewOffer] = useState({ title: '', code: '', type: 'percentage', value: '' });
 
-    const handleCreateOffer = () => {
+    const memoizedOffers = useMemo(() => offers, [offers]);
+    const handleCreateOffer = useCallback(() => {
         // In a real app, you would call a service to create the offer
         const newId = Math.max(...offers.map(o => o.id), 0) + 1;
         setOffers([...offers, { ...newOffer, id: newId, value: Number(newOffer.value), isActive: true, type: newOffer.type as 'percentage' | 'fixed' }]);
         setIsDialogOpen(false);
         setNewOffer({ title: '', code: '', type: 'percentage', value: '' }); // Reset form
-    };
+    }, [offers, newOffer]);
     
     return (
         <Card>
@@ -91,23 +111,8 @@ const OfferManager: React.FC = () => {
             </CardHeader>
             <CardContent>
                 <div className="space-y-4">
-                    {offers.map(offer => (
-                        <Card key={offer.id} className="flex justify-between items-center p-4">
-                            <div className="flex items-center space-x-4">
-                                <div className={`p-2 rounded-full ${offer.type === 'percentage' ? 'bg-blue-100' : 'bg-green-100'}`}>
-                                    {offer.type === 'percentage' ? <Percent className="h-5 w-5 text-blue-600"/> : <Tag className="h-5 w-5 text-green-600"/>}
-                                </div>
-                                <div>
-                                    <p className="font-semibold">{offer.title}</p>
-                                    <p className="text-sm text-gray-500">Code: {offer.code}</p>
-                                </div>
-                            </div>
-                            <div>
-                                <Badge variant={offer.isActive ? 'default' : 'destructive'}>
-                                    {offer.isActive ? 'Active' : 'Inactive'}
-                                </Badge>
-                            </div>
-                        </Card>
+                    {memoizedOffers.map(offer => (
+                        <OfferCard key={offer.id} offer={offer} />
                     ))}
                 </div>
             </CardContent>
