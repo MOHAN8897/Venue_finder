@@ -281,27 +281,42 @@ DECLARE
     result jsonb;
 BEGIN
     -- Get venue details
-    SELECT to_jsonb(v) INTO venue_details FROM public.venues v WHERE v.id = venue_uuid;
-    
-    -- Get submitter details
-    SELECT jsonb_build_object(
-        'full_name', p.full_name,
-        'email', p.email,
-        'avatar_url', p.avatar_url,
-        'created_at', p.created_at
-    ) INTO submitter_details 
-    FROM public.profiles p
-    JOIN public.venues v ON p.user_id = v.submitted_by
+    SELECT to_jsonb(v) INTO venue_details 
+    FROM public.venues v 
     WHERE v.id = venue_uuid;
     
+    -- Check if venue exists
+    IF venue_details IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Venue not found',
+            'venue_id', venue_uuid
+        );
+    END IF;
+    
+    -- Get submitter details with proper null handling
+    SELECT jsonb_build_object(
+        'full_name', COALESCE(p.full_name, p.name),
+        'email', p.email,
+        'avatar_url', p.avatar_url,
+        'created_at', p.created_at,
+        'role', p.role,
+        'verified', p.verified
+    ) INTO submitter_details 
+    FROM public.profiles p
+    INNER JOIN public.venues v ON p.user_id = v.submitted_by
+    WHERE v.id = venue_uuid;
+    
+    -- Build final result
     result := jsonb_build_object(
+        'success', true,
         'venue', venue_details,
         'submitter', submitter_details
     );
     
     RETURN result;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ### 6. Create Draft Recovery System (2025-01-27)
 **Purpose:** Functions and tables to support saving and retrieving venue submission drafts.
