@@ -386,7 +386,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'Account is temporarily locked');
     END IF;
     
-    -- Verify password (using simple hash comparison for demo - in production use proper bcrypt)
+    -- Verify password (plain text)
     IF admin_record.password_hash = password_input THEN
         -- Reset login attempts and update last login
         UPDATE public.super_admin_credentials 
@@ -461,3 +461,72 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 10. Create the super admin user profile
 SELECT public.create_super_admin_profile('superadmin@venuefinder.com', 'Super Administrator'); 
+
+---
+
+## [2024-08-01] Remove password hashing for super admin login (TEMPORARY)
+
+- Updated `public.super_admin_credentials` to store the password in plain text for the super admin account (`superadmin@venuefinder.com`).
+- Updated `public.authenticate_super_admin` function to compare the password as plain text only.
+- **TEMPORARY:** Password for superadmin is now: `King1#889790@`
+- This is for development/debug only. Revert to hashed passwords before production.
+
+```sql
+-- Migration: Remove hashing for super admin login and set plain password
+UPDATE public.super_admin_credentials
+SET password_hash = 'King1#889790@'
+WHERE email = 'superadmin@venuefinder.com';
+
+CREATE OR REPLACE FUNCTION public.authenticate_super_admin(
+    admin_id_input text,
+    password_input text
+)
+RETURNS jsonb AS $$
+DECLARE
+    admin_record public.super_admin_credentials;
+    result jsonb;
+BEGIN
+    -- Get admin credentials
+    SELECT * INTO admin_record 
+    FROM public.super_admin_credentials 
+    WHERE admin_id = admin_id_input AND is_active = true;
+    
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Invalid credentials');
+    END IF;
+    
+    -- Check if account is locked
+    IF admin_record.locked_until IS NOT NULL AND admin_record.locked_until > now() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Account is temporarily locked');
+    END IF;
+    
+    -- Verify password (plain text)
+    IF admin_record.password_hash = password_input THEN
+        -- Reset login attempts and update last login
+        UPDATE public.super_admin_credentials 
+        SET login_attempts = 0,
+            last_login = now(),
+            locked_until = NULL
+        WHERE id = admin_record.id;
+        
+        RETURN jsonb_build_object(
+            'success', true,
+            'admin_id', admin_record.admin_id,
+            'email', admin_record.email,
+            'full_name', admin_record.full_name
+        );
+    ELSE
+        -- Increment login attempts
+        UPDATE public.super_admin_credentials 
+        SET login_attempts = login_attempts + 1,
+            locked_until = CASE 
+                WHEN login_attempts >= 4 THEN now() + interval '15 minutes'
+                ELSE NULL 
+            END
+        WHERE id = admin_record.id;
+        
+        RETURN jsonb_build_object('success', false, 'error', 'Invalid credentials');
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+``` 

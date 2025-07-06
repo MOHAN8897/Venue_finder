@@ -1,8 +1,6 @@
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
 import { sessionService } from '../lib/sessionService';
-import { useAuth } from '../hooks/useAuth';
 
 interface SupabaseUser {
   id: string;
@@ -53,6 +51,7 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, phone?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -60,32 +59,6 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 interface AuthProviderProps {
   children: React.ReactNode;
 }
-
-// This component will have access to the router context
-const AuthManager: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigate = useNavigate();
-  const auth = useAuth();
-
-  const signInWithEmail = useCallback(
-    async (email: string, password: string): Promise<{ error: string | null }> => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error('Sign in error:', error);
-        return { error: error.message };
-      }
-      navigate('/');
-      return { error: null };
-    },
-    [navigate]
-  );
-
-  const value = {
-    ...auth,
-    signInWithEmail,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -155,30 +128,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Initialize auth state
+  // Enhanced session sync and cleanup logic with profile creation grace period
   useEffect(() => {
     let mounted = true;
+    let profileSyncAttempts = 0;
+    const MAX_PROFILE_SYNC_ATTEMPTS = 3;
 
     const initializeAuth = async () => {
       try {
         if (!mounted) return;
         setLoading(true);
-        const savedUser = localStorage.getItem('venueFinder_user');
-        if (savedUser && mounted) {
-          try {
-            const parsedUser = JSON.parse(savedUser);
-            setUser(parsedUser);
-          } catch {
-            console.warn('Failed to parse saved user from localStorage');
-            localStorage.removeItem('venueFinder_user');
-          }
-        }
         const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
         if (session?.user) {
+          const supabaseUserId = session.user.id;
+          // Try to sync/create profile up to MAX_PROFILE_SYNC_ATTEMPTS
+          let profileSynced = false;
+          while (!profileSynced && profileSyncAttempts < MAX_PROFILE_SYNC_ATTEMPTS) {
+            try {
           await handleUserLogin(session.user as SupabaseUser);
+              // After sync, check if user is set and matches session
+              const newUser = JSON.parse(localStorage.getItem('venueFinder_user') || 'null');
+              if (newUser && newUser.user_id === supabaseUserId) {
+                profileSynced = true;
+                setUser(newUser);
+                break;
+              }
+            } catch {
+              // Ignore and retry
+            }
+            profileSyncAttempts++;
+            await new Promise(res => setTimeout(res, 500)); // Wait before retry
+          }
+          if (!profileSynced) {
+            // Could not sync profile after retries, force logout
+            localStorage.removeItem('venueFinder_user');
+            setUser(null);
+            await supabase.auth.signOut();
+            window.location.reload();
+            return;
+          }
         } else {
           setUser(null);
+          localStorage.removeItem('venueFinder_user');
         }
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
@@ -189,6 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             } else {
               await handleUserLogout(user);
               setUser(null);
+              localStorage.removeItem('venueFinder_user');
             }
             if (mounted) {
               setLoading(false);
@@ -241,10 +233,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<{ error: string | null }> => {
-    // This will be overridden by AuthManager, but we need a placeholder
-    console.warn('signInWithEmail called outside of Router context');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error ? error.message : null };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('Sign in error:', error);
+      return { error: error.message };
+    }
+    // Fetch and sync user profile after successful login
+    if (data && data.user) {
+      // Use the same syncUserProfile logic as in AuthProvider
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .single();
+        if (!profileError && profile) {
+          localStorage.setItem('venueFinder_user', JSON.stringify(profile));
+        }
+      } catch (err) {
+        console.error('Error syncing user profile after email login:', err);
+      }
+    }
+    return { error: null };
   };
 
   const signUpWithEmail = useCallback(
@@ -321,16 +331,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [user]);
 
-  const value: AuthContextType & { refreshUserProfile: () => Promise<void> } = {
-    ...{
+  const value: AuthContextType = {
       user,
       loading: loading && !initialized, // Only show loading if not initialized
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
       signOut,
-      updateProfile
-    },
+    updateProfile,
     refreshUserProfile
   };
 
@@ -340,5 +348,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export { AuthManager }; 

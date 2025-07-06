@@ -403,19 +403,28 @@ export class VenueSubmissionService {
   }
 
   /**
-   * Get the user's venue submission status (pending, approved, rejected, or none)
+   * Get the current user's most recent venue submission status
    */
   static async getUserVenueSubmissionStatus(): Promise<string> {
     try {
-      const { data, error } = await supabase.rpc('get_user_venue_submission_status');
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) return 'none';
+      const { data, error } = await supabase
+        .from('venues')
+        .select('approval_status')
+        .eq('submitted_by', userId)
+        .order('submission_date', { ascending: false })
+        .limit(1)
+        .maybeSingle(); // Use maybeSingle to avoid errors if no venue exists
       if (error) {
-        console.error('Error fetching venue submission status:', error);
-        return 'none';
+        console.error('Error fetching user venue submission status:', error);
+        return 'unknown';
       }
-      return data || 'none';
+      return data?.approval_status || 'none';
     } catch (error) {
-      console.error('Error fetching venue submission status:', error);
-      return 'none';
+      console.error('Error in getUserVenueSubmissionStatus:', error);
+      return 'unknown';
     }
   }
 } 

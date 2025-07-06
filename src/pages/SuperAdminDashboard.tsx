@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "../components/ui/button";
 import { 
   BarChart3, 
@@ -6,14 +6,8 @@ import {
   Building2, 
   Settings, 
   LogOut,
-  AlertTriangle,
-  Activity,
-  Plus,
-  Download,
-  FileText,
-  Shield,
-  DollarSign,
-  Search
+  Search,
+  Shield
 } from "lucide-react";
 import { supabase } from '../lib/supabase';
 
@@ -26,25 +20,97 @@ const sidebarTabs = [
   { id: "admins", label: "Admin Management", icon: Shield },
 ];
 
-interface Venue {
+interface VenueListItem {
   id: string;
   name: string;
   type: string;
-  user_id: string;
-  status: 'pending' | 'approved' | 'rejected';
+  approval_status: string; 
+  submission_date?: string;
+  submitted_by?: string;
+  profiles?: {
+    user_id?: string;
+    email?: string;
+    avatar_url?: string;
+    full_name?: string;
+  };
+}
+
+interface VenueSubmissionDetails {
+  venue: {
+    id: string;
+    name: string;
+    description: string;
+    type: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    zip_code?: string;
+    country?: string;
+    latitude?: number;
+    longitude?: number;
+    capacity: number;
+    area: string;
+    dimensions?: string;
+    hourly_rate: number;
+    daily_rate?: number;
+    price_per_hour?: number;
+    price_per_day?: number;
+    currency: string;
+    images: string[];
+    videos: string[];
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    website?: string;
+    owner_id: string; 
+    status: string;
+    verified: boolean;
+    rating: number;
+    review_count: number;
+    total_reviews?: number;
+    created_at: string;
+    updated_at: string;
+    image_urls?: string[]; 
+    is_published: boolean;
+    submission_date?: string;
+    approval_date?: string;
+    rejection_reason?: string;
+    approved_by?: string; 
+    submitted_by?: string; 
+    approval_status: string; 
+  };
+  submitter: {
+    full_name?: string;
+    email: string;
+    avatar_url?: string;
   created_at?: string;
-  approved_at?: string;
-  rejected_at?: string;
+    user_id?: string; 
+  };
+  amenities: {
+    id: string;
+    name: string;
+    icon?: string;
+    category?: string;
+  }[];
+  slots: {
+    id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    available: boolean;
+    price: number;
+  }[];
 }
 
 const SuperAdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [venues, setVenues] = useState<unknown[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("venues");
+  const [venues, setVenues] = useState<VenueListItem[]>([]); 
+  const [loading, setLoading] = useState(false); // Initialize to false. Only set true when fetchVenues starts.
   const [error, setError] = useState('');
   const [venueTab, setVenueTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [viewMode, setViewMode] = useState<'list' | 'detailed'>('list');
-  const [selectedVenue, setSelectedVenue] = useState<unknown | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueSubmissionDetails | null>(null); 
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
@@ -54,383 +120,562 @@ const SuperAdminDashboard: React.FC = () => {
   const [logsLoading, setLogsLoading] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
 
-  React.useEffect(() => {
-    // Always apply dark theme
-    document.documentElement.classList.add("dark");
-    document.body.classList.add("dark");
-  }, []);
+  // Ref to store the ID of the latest fetch request
+  const latestFetchId = useRef<number>(0);
 
-  useEffect(() => {
-    const fetchVenues = async () => {
+  // Memoized fetchVenues function
+  const fetchVenues = useCallback(async (status: 'pending' | 'approved' | 'rejected' = venueTab) => {
+    const currentFetchId = Date.now();
+    latestFetchId.current = currentFetchId;
+
+    console.log(`[FetchVenues] Fetch started for tab: ${status}, currentFetchId: ${currentFetchId}`); // DEBUG
       setLoading(true);
-      setError('');
-      const status = venueTab;
-      // Fetch venues with user info by joining profiles
+    setError(''); // Clear any previous errors here
+
+    try {
       const { data, error } = await supabase
         .from('venues')
         .select(`*, profiles:submitted_by (user_id, email, avatar_url, full_name)`)
         .eq('approval_status', status)
         .order('submission_date', { ascending: false });
-      if (error) setError(error.message);
+      
+      if (error) {
+        console.error(`[FetchVenues] Error for ${currentFetchId}:`, error); // DEBUG
+        throw error;
+      }
+      if (latestFetchId.current === currentFetchId) { // Only update state if this is the latest fetch
       setVenues(data || []);
+        console.log(`[FetchVenues] Data received for ${currentFetchId}, updated state. Data:`, data); // DEBUG
+      } else {
+        console.log(`[FetchVenues] Data received for ${currentFetchId}, but it's not the latest. Skipping state update.`); // DEBUG
+      }
+
+    } catch (err: unknown) {
+      if (latestFetchId.current === currentFetchId) { // Only update error state if this is the latest fetch
+        let message = 'Failed to fetch venues.';
+        if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as Record<string, unknown>).message === 'string') {
+          message = (err as { message: string }).message;
+        }
+        setError(message);
+        setVenues([]);
+        console.error(`[FetchVenues] Error handler for ${currentFetchId}, updated error state.`, err); // DEBUG
+      } else {
+        console.error(`[FetchVenues] Error for ${currentFetchId}, but it's not the latest. Skipping error state update.`, err); // DEBUG
+      }
+    } finally {
+      if (latestFetchId.current === currentFetchId) { // Only set loading to false if this is the latest fetch
       setLoading(false);
-    };
-    fetchVenues();
+        console.log(`[FetchVenues] Fetch finished for ${currentFetchId}, setLoading(false).`); // DEBUG
+      } else {
+        console.log(`[FetchVenues] Fetch finished for ${currentFetchId}, but it's not the latest. Not setting loading to false.`); // DEBUG
+      }
+      console.log(`[FetchVenues] Final state check for ${currentFetchId}: loading is now ${loading}, latestFetchId is ${latestFetchId.current}`); // DEBUG
+    }
+  }, [supabase, venueTab]); // Remove 'loading' from dependencies to avoid unnecessary re-renders
+
+  // Filter out only truly incomplete venues (must have both name and type)
+  const isVenueComplete = (venue: VenueListItem) => {
+    return Boolean(venue.name && venue.type);
+  };
+
+  // Filtered venues for display
+  const filteredVenues = venues
+    .filter(isVenueComplete)
+    .filter((venue: VenueListItem) => {
+      const email = venue.profiles?.email || '';
+      const name = venue.name || '';
+      const type = venue.type || '';
+      return (
+        email.toLowerCase().includes(search.toLowerCase()) ||
+        name.toLowerCase().includes(search.toLowerCase()) ||
+        type.toLowerCase().includes(search.toLowerCase())
+      );
+    });
+
+  // Clear search input, reset detailed view, and clear logs on venueTab switch for better UX
+  useEffect(() => {
+    console.log(`[useEffect - venueTab] venueTab changed to: ${venueTab}`); // DEBUG
+    setSearch('');
+    setViewMode('list'); // Always go back to list view when switching venue tabs
+    setSelectedVenue(null); // Clear selected venue details
+    setAdminNotes(''); // Clear admin notes
+    setRejectionReason(''); // Clear rejection reason
+    setActivityLogs([]); // Clear activity logs
+    setShowLogs(false); // Hide logs
+    // eslint-disable-next-line
   }, [venueTab]);
 
-  const fetchVenueDetails = async (venueId: string) => {
+  // Always fetch venues on mount and on tab change
+  useEffect(() => {
+    console.log(`[useEffect - activeTab/venueTab] activeTab: ${activeTab}, venueTab: ${venueTab}`); // DEBUG
+    if (activeTab === 'venues') {
+      fetchVenues(venueTab);
+    } else {
+      setLoading(false);
+      latestFetchId.current = 0;
+      console.log(`[useEffect - activeTab/venueTab] Leaving venues tab, setLoading(false), latestFetchId reset.`); // DEBUG
+    }
+  }, [activeTab, venueTab, fetchVenues]);
+
+  // New: Reset venue-specific states when navigating to the "Venue Management" tab
+  useEffect(() => {
+    console.log(`[useEffect - activeTab Only] activeTab changed to: ${activeTab}`); // DEBUG
+    if (activeTab === 'venues') {
+      setViewMode('list');
+      setSelectedVenue(null);
+      setSearch('');
+      setAdminNotes('');
+      setRejectionReason('');
+      setActivityLogs([]);
+      setShowLogs(false);
+      // Ensure the default venueTab is 'pending' to trigger initial fetch if needed
+      // No need to set setVenueTab here if it's already 'pending', to avoid redundant re-renders
+      if (venueTab !== 'pending') {
+        setVenueTab('pending');
+        console.log(`[useEffect - activeTab Only] Setting venueTab to pending.`); // DEBUG
+      }
+    } else {
+      // Ensure venue-specific loading states are also reset when leaving the venues tab
+      setDetailsLoading(false);
+      setLogsLoading(false);
+      console.log(`[useEffect - activeTab Only] Leaving non-venues tab, resetting detailsLoading/logsLoading.`); // DEBUG
+    }
+    // eslint-disable-next-line
+  }, [activeTab]);
+
+  // Debug useEffect for 'loading' state changes
+  useEffect(() => {
+    console.log(`[Loading State] 'loading' state changed to: ${loading}`); // DEBUG
+  }, [loading]);
+
+  // Helper to refresh venues after any update
+  const refreshVenues = useCallback(() => fetchVenues(venueTab), [fetchVenues, venueTab]);
+
+  React.useEffect(() => {
+    document.documentElement.classList.add("dark");
+    document.body.classList.add("dark");
+  }, []);
+
+  // Memoized fetchVenueDetails function
+  const fetchVenueDetails = useCallback(async (venueId: string) => {
     setDetailsLoading(true);
-    setSelectedVenue(null);
+    setSelectedVenue(null); // Clear previous details immediately
+    setError(''); // Clear any previous errors here
+    try {
     const { data, error } = await supabase.rpc('get_venue_approval_details', { venue_uuid: venueId });
-    if (error) setError(error.message);
-    setSelectedVenue(data);
-    setDetailsLoading(false);
+      if (error) throw error;
+      setSelectedVenue(Array.isArray(data) ? data[0] : data);
+    } catch (err: unknown) {
+      let message = 'Failed to fetch venue details.';
+      if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as Record<string, unknown>).message === 'string') {
+        message = (err as { message: string }).message;
+      }
+      setError(message);
+      setSelectedVenue(null);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, [supabase]);
+
+  // Memoized fetchActivityLogs function
+  const fetchActivityLogs = useCallback(async (venueId: string) => {
+    setLogsLoading(true);
+    setError(''); // Clear any previous errors here
+    try {
+      const { data, error } = await supabase
+        .from('venue_approval_logs')
+        .select('*')
+        .eq('venue_id', venueId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setActivityLogs(data || []);
+    } catch (err: unknown) {
+      let message = 'Failed to fetch activity logs.';
+      if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as Record<string, unknown>).message === 'string') {
+        message = (err as { message: string }).message;
+      }
+      setError(message);
+      setActivityLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [supabase]);
+
+  const getAdminId = () => {
+    let session = localStorage.getItem('superAdminSession');
+    if (!session) {
+      session = sessionStorage.getItem('superAdminSession');
+    }
+    if (session) {
+      try {
+        const sessionObj = JSON.parse(session);
+        return sessionObj.adminUuid; // use the UUID
+      } catch {
+        return null;
+      }
+    }
+    return null;
   };
 
   const handleApprove = async (venueId: string) => {
     setLoading(true);
-    const { error } = await supabase.rpc('approve_venue', { venue_uuid: venueId, admin_notes: adminNotes });
-    if (error) setError(error.message);
-    setVenues(prev => prev.filter(v => v.venue_id !== venueId && v.id !== venueId));
+    setError('');
+    const adminNotesToSend = adminNotes;
+    const { error: approveError } = await supabase.rpc('approve_venue', {
+      venue_uuid: venueId,
+      admin_notes: adminNotesToSend
+    });
+    if (approveError) setError(approveError.message);
     setSelectedVenue(null);
+    await refreshVenues();
     setLoading(false);
   };
 
   const handleReject = async (venueId: string) => {
     setLoading(true);
-    const { error } = await supabase.rpc('reject_venue', { venue_uuid: venueId, rejection_reason: rejectionReason, admin_notes: adminNotes });
-    if (error) setError(error.message);
-    setVenues(prev => prev.filter(v => v.venue_id !== venueId && v.id !== venueId));
+    setError('');
+    const adminNotesToSend = adminNotes;
+    const rejectionReasonToSend = rejectionReason;
+    const { error: rejectError } = await supabase.rpc('reject_venue', {
+      venue_uuid: venueId,
+      rejection_reason: rejectionReasonToSend,
+      admin_notes: adminNotesToSend
+    });
+    if (rejectError) setError(rejectError.message);
     setSelectedVenue(null);
+    await refreshVenues();
     setLoading(false);
   };
 
-  const stats = {
+  const stats = useMemo(() => ({
     pending: venues.length,
     approved: venueTab === 'approved' ? venues.length : undefined,
     rejected: venueTab === 'rejected' ? venues.length : undefined,
+  }), [venues.length, venueTab]);
+
+  const handleLogout = async () => {
+    // End Supabase session
+    await supabase.auth.signOut();
+    // Remove all Supabase and app session keys
+    localStorage.removeItem('superAdminSession');
+    sessionStorage.removeItem('superAdminSession');
+    // Remove all Supabase keys (tokens, etc.)
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-')) localStorage.removeItem(key);
+    });
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('sb-')) sessionStorage.removeItem(key);
+    });
+    // Optionally reset any in-memory state here (if using context/store)
+    // Redirect to login with signed out message
+    window.location.href = '/super-admin/login?signedout=1';
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("superAdminSession");
-    window.location.href = "/super-admin/login";
-  };
-
-  // Fetch activity logs for a venue
-  const fetchActivityLogs = async (venueId: string) => {
-    setLogsLoading(true);
-    setShowLogs(true);
-    const { data, error } = await supabase
-      .from('venue_approval_logs')
-      .select('*')
-      .eq('venue_id', venueId)
-      .order('created_at', { ascending: false });
-    if (!error) setActivityLogs(data || []);
-    setLogsLoading(false);
-  };
-
-  // Filter venues by search
-  const filteredVenues = (venues as any[]).filter((venue) => {
-    const email = venue.submitter_email || venue.user_id || '';
-    const name = venue.venue_name || venue.name || '';
-    const type = venue.venue_type || venue.type || '';
-    return (
-      email.toLowerCase().includes(search.toLowerCase()) ||
-      name.toLowerCase().includes(search.toLowerCase()) ||
-      type.toLowerCase().includes(search.toLowerCase())
-    );
-  });
-
-  // Batch approve/reject
   const handleBatchApprove = async () => {
     setLoading(true);
+    const adminId = getAdminId();
     for (const venueId of selectedVenues) {
-      await supabase.rpc('approve_venue', { venue_uuid: venueId, admin_notes: adminNotes });
+      await supabase.rpc('set_venue_approval_status', {
+        venue_uuid: venueId,
+        new_status: 'approved',
+        admin_id: adminId,
+        reason: null
+      });
+      await supabase.rpc('log_venue_approval_action', {
+        venue_id: venueId,
+        action: 'approved',
+        admin_id: adminId,
+        reason: null,
+        notes: adminNotes
+      });
     }
-    setVenues(prev => prev.filter(v => !selectedVenues.includes(v.venue_id || v.id)));
     setSelectedVenues([]);
+    await refreshVenues();
     setLoading(false);
   };
+
   const handleBatchReject = async () => {
     setLoading(true);
+    const adminId = getAdminId();
     for (const venueId of selectedVenues) {
-      await supabase.rpc('reject_venue', { venue_uuid: venueId, rejection_reason: rejectionReason, admin_notes: adminNotes });
+      await supabase.rpc('set_venue_approval_status', {
+        venue_uuid: venueId,
+        new_status: 'rejected',
+        admin_id: adminId,
+        reason: rejectionReason
+      });
+      await supabase.rpc('log_venue_approval_action', {
+        venue_id: venueId,
+        action: 'rejected',
+        admin_id: adminId,
+        reason: rejectionReason,
+        notes: adminNotes
+      });
     }
-    setVenues(prev => prev.filter(v => !selectedVenues.includes(v.venue_id || v.id)));
     setSelectedVenues([]);
+    await refreshVenues();
     setLoading(false);
   };
 
   return (
-    <div className="flex h-screen dark bg-gray-900 text-white">
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
       {/* Sidebar */}
-      <aside className="w-64 flex flex-col bg-gray-800 border-r border-gray-700 shadow-lg">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold mb-8 text-white">Super Admin</h1>
+      <aside className="w-64 bg-gray-800 dark:bg-gray-900 text-white p-6 space-y-6">
+        <div className="text-2xl font-bold">Admin Panel</div>
           <nav className="space-y-2">
             {sidebarTabs.map((tab) => (
               <Button
                 key={tab.id}
-                variant={activeTab === tab.id ? "default" : "ghost"}
-                className={`w-full justify-start ${
-                  activeTab === tab.id 
-                    ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                    : "hover:bg-blue-900 hover:text-white"
-                }`}
+              variant="ghost"
+              className={`w-full justify-start text-left ${activeTab === tab.id ? 'bg-gray-700 dark:bg-gray-700' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <tab.icon className="h-5 w-5 mr-3" />
+              <tab.icon className="mr-3 h-5 w-5" />
                 {tab.label}
               </Button>
             ))}
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-left text-red-400 hover:text-red-300"
+            onClick={handleLogout}
+          >
+            <LogOut className="mr-3 h-5 w-5" />
+            Logout
+          </Button>
           </nav>
-        </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-gray-800 border-b border-gray-700 px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">
-              {sidebarTabs.find(tab => tab.id === activeTab)?.label}
-            </h2>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" onClick={handleLogout} className="flex items-center text-red-600 hover:text-red-700 border-red-600 hover:border-red-700">
-                <LogOut className="h-4 w-4 mr-2" /> Logout
-              </Button>
+      <main className="flex-1 p-8 overflow-auto">
+        <header className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">{sidebarTabs.find(tab => tab.id === activeTab)?.label}</h1>
+          {activeTab === "venues" && viewMode === "list" && (
+            <div className="flex space-x-2">
+              <Button onClick={handleBatchApprove} disabled={selectedVenues.length === 0} variant="default">Batch Approve ({selectedVenues.length})</Button>
+              <Button onClick={handleBatchReject} disabled={selectedVenues.length === 0} variant="destructive">Batch Reject ({selectedVenues.length})</Button>
         </div>
-          </div>
+          )}
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 overflow-auto bg-gray-900">
+        {error && <div className="bg-red-500 text-white p-3 rounded mb-4">Error: {error}</div>}
+
+        {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
-            <section className="p-8 space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h2>
-                <span className="text-sm text-gray-600 dark:text-gray-400">Last updated: Just now</span>
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-2">Total Venues</h2>
+              <p className="text-4xl font-bold">{stats.pending + (stats.approved || 0) + (stats.rejected || 0)}</p>
               </div>
-              
-              {/* Stat Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">-</p>
-                      <div className="flex items-center mt-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">No data available</span>
-        </div>
-      </div>
-                    <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-                      <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-        </div>
-      </div>
-    </div>
-                
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Revenue</p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">-</p>
-                      <div className="flex items-center mt-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">No data available</span>
-                      </div>
-                    </div>
-                    <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Venues</p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">-</p>
-                      <div className="flex items-center mt-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">No data available</span>
-                      </div>
-                    </div>
-                    <div className="h-12 w-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Approvals</p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">-</p>
-                      <div className="flex items-center mt-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">No data available</span>
-        </div>
-          </div>
-                    <div className="h-12 w-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center">
-                      <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-          </div>
-      </div>
-      </div>
-    </div>
-              
-              {/* Charts Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">User Growth</h3>
-                    <Button variant="link" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium p-0 h-auto">View details</Button>
-                  </div>
-                  <div className="h-64 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600 dark:text-gray-400">Chart will appear here</p>
-                    </div>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-2">Pending Venues</h2>
+              <p className="text-4xl font-bold">{stats.pending}</p>
             </div>
-        </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
-                    <Button variant="link" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium p-0 h-auto">View all</Button>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-2">Approved Venues</h2>
+              <p className="text-4xl font-bold">{stats.approved || 0}</p>
             </div>
-                  <div className="text-center py-12">
-                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-600 dark:text-gray-400">No recent activity</p>
-        </div>
-      </div>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-2">Rejected Venues</h2>
+              <p className="text-4xl font-bold">{stats.rejected || 0}</p>
           </div>
             </section>
           )}
 
+        {/* Venue Management Tab */}
           {activeTab === "venues" && (
-            <section className="p-8 space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Venue Management</h2>
-                <div className="flex gap-2">
-                  <Button variant={viewMode === 'list' ? 'default' : 'ghost'} onClick={() => setViewMode('list')}>List View</Button>
-                  <Button variant={viewMode === 'detailed' ? 'default' : 'ghost'} onClick={() => setViewMode('detailed')}>Detailed View</Button>
-                </div>
+          <section>
+            <div className="flex justify-between items-center mb-4">
+              <div className="space-x-2">
+                <Button variant={venueTab === 'pending' ? 'default' : 'outline'} onClick={() => { setVenueTab('pending'); setViewMode('list'); setDetailsLoading(false); setLogsLoading(false); }}>Pending</Button>
+                <Button variant={venueTab === 'approved' ? 'default' : 'outline'} onClick={() => { setVenueTab('approved'); setViewMode('list'); setDetailsLoading(false); setLogsLoading(false); }}>Approved</Button>
+                <Button variant={venueTab === 'rejected' ? 'default' : 'outline'} onClick={() => { setVenueTab('rejected'); setViewMode('list'); setDetailsLoading(false); setLogsLoading(false); }}>Rejected</Button>
               </div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
                     type="text"
-                    placeholder="Search by email, name, or type..."
+                  placeholder="Search venues by email, name, type..."
+                  className="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="pl-10 pr-4 py-2 w-full rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-gray-900 bg-white/80 placeholder-gray-400 shadow-sm transition-all duration-200"
-                  />
-                </div>
-                {venueTab === 'pending' && (
-                  <>
-                    <Button variant="default" disabled={selectedVenues.length === 0} onClick={handleBatchApprove}>Approve Selected</Button>
-                    <Button variant="destructive" disabled={selectedVenues.length === 0} onClick={handleBatchReject}>Reject Selected</Button>
-                  </>
-                )}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
-              <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg mb-6">
-                <Button
-                  variant={venueTab === 'pending' ? "default" : "ghost"}
-                  className={`flex-1 ${venueTab === 'pending' ? "bg-blue-600 hover:bg-blue-700 text-white" : "hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-900 dark:hover:text-white"}`}
-                  onClick={() => setVenueTab('pending')}
-                >
-                  Pending <span className="ml-2 px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">{stats.pending}</span>
-                </Button>
-                <Button
-                  variant={venueTab === 'approved' ? "default" : "ghost"}
-                  className={`flex-1 ${venueTab === 'approved' ? "bg-blue-600 hover:bg-blue-700 text-white" : "hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-900 dark:hover:text-white"}`}
-                  onClick={() => setVenueTab('approved')}
-                >
-                  Approved <span className="ml-2 px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">{stats.approved ?? '-'}</span>
-                </Button>
-                <Button
-                  variant={venueTab === 'rejected' ? "default" : "ghost"}
-                  className={`flex-1 ${venueTab === 'rejected' ? "bg-blue-600 hover:bg-blue-700 text-white" : "hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-900 dark:hover:text-white"}`}
-                  onClick={() => setVenueTab('rejected')}
-                >
-                  Rejected <span className="ml-2 px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">{stats.rejected ?? '-'}</span>
-                </Button>
-              </div>
-              {/* Venue List or Detailed View */}
+      </div>
+
               {loading ? (
-                <div className="text-center py-12">Loading...</div>
-              ) : error ? (
-                <div className="text-center text-red-500 py-12">{error}</div>
-              ) : filteredVenues.length === 0 ? (
-                <div className="text-center py-12">No {venueTab} venues to display.</div>
-              ) : viewMode === 'list' ? (
+              <div className="text-center py-12">Loading venues...</div>
+              ) : (
+                // Only render list or detailed view if not loading
+                viewMode === 'list' ? (
+                  filteredVenues.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">No {venueTab} venues found.</div>
+                  ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredVenues.map((venue) => {
-                    const v = venue as { id: string; name: string; type: string; submission_date?: string; profiles?: { user_id?: string; email?: string; avatar_url?: string; full_name?: string } };
-                    const user = v.profiles || {};
+                  {filteredVenues.map((venue: VenueListItem) => {
+                        const user = venue.profiles || {};
+                        if (!venue.profiles) {
+                          console.warn(`[Profile] No profile found for venue id: ${venue.id}, submitted_by: ${venue.submitted_by}`); // DEBUG
+                        }
+                        const avatarUrl = user.avatar_url;
+                        const displayName = user.full_name || user.email || venue.name || 'Unknown User';
+                        const displayEmail = user.email || 'No email';
+                        const displayInitial = (user.email ? user.email[0] : (venue.name ? venue.name[0] : '?')).toUpperCase();
                     return (
-                      <div key={v.id} className={`border rounded-lg p-4 bg-gray-50 dark:bg-gray-900 cursor-pointer relative ${selectedVenues.includes(v.id) ? 'ring-2 ring-blue-500' : ''}`}
-                        onClick={() => { fetchVenueDetails(v.id); setViewMode('detailed'); }}>
+                          <div key={venue.id} className={`border rounded-lg p-4 bg-gray-50 dark:bg-gray-900 cursor-pointer relative ${selectedVenues.includes(venue.id) ? 'ring-2 ring-blue-500' : ''}`}
+                            onClick={() => { fetchVenueDetails(venue.id); setViewMode('detailed'); }}>
                         <div className="flex items-center gap-3 mb-2">
-                          {user.avatar_url ? (
-                            <img src={user.avatar_url} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
                             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                              {user.email ? user.email[0].toUpperCase() : '?'}
+                                  {displayInitial}
                             </div>
                           )}
                           <div>
-                            <div className="font-semibold">{user.full_name || user.email || v.name}</div>
-                            <div className="text-xs text-gray-500">{user.email || user.user_id}</div>
+                                <div className="font-semibold">{displayName}</div>
+                                <div className="text-xs text-gray-500">{displayEmail}</div>
                           </div>
                         </div>
-                        <div className="text-sm text-gray-700 dark:text-gray-300">{v.name}</div>
-                        <div className="text-xs text-gray-400">{v.type}</div>
+                            <div className="text-sm text-gray-700 dark:text-gray-300">{venue.name}</div>
+                            <div className="text-xs text-gray-400">{venue.type}</div>
                         <div className="text-xs mt-1">Status: <span className="font-semibold capitalize">{venueTab}</span></div>
-                        <div className="text-xs text-gray-400">Submitted: {v.submission_date ? new Date(v.submission_date).toLocaleString() : 'N/A'}</div>
+                            <div className="text-xs text-gray-400">Submitted: {venue.submission_date ? new Date(venue.submission_date).toLocaleString() : 'N/A'}</div>
                       </div>
                     );
                   })}
                 </div>
+                  )
               ) : (
-                // Detailed View
-                selectedVenue && !detailsLoading ? (
+                  // Detailed View Conditional Rendering
+                  detailsLoading ? (
+                    <div className="text-center py-12">Loading details...</div>
+                  ) : selectedVenue ? (
                   (() => {
-                    const sv = selectedVenue as any; // TODO: Replace 'any' with a proper VenueDetails type
+                    const sv = selectedVenue; 
+                    const venue = sv.venue;
+                    const submitter = sv.submitter;
+                    const amenities = sv.amenities || [];
+                    const slots = sv.slots || [];
+
                     return (
-                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
-                        <div className="flex items-center gap-4 mb-4">
-                          {sv.submitter?.avatar_url ? (
-                            <img src={sv.submitter.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover" />
+                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8 max-w-4xl mx-auto space-y-6">
+                        {/* Submitter Details */}
+                        <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                          {submitter?.avatar_url ? (
+                            <img src={submitter.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover" />
                           ) : (
                             <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl">
-                              {sv.submitter?.email ? sv.submitter.email[0].toUpperCase() : '?'}
+                              {submitter?.email ? submitter.email[0].toUpperCase() : '?'}
                             </div>
                           )}
                           <div>
-                            <div className="font-semibold text-lg">{sv.submitter?.full_name || 'Unknown User'}</div>
-                            <div className="text-xs text-gray-500">{sv.submitter?.email}</div>
-                            <div className="text-xs text-gray-400">User ID: {sv.venue?.submitted_by}</div>
+                            <div className="font-semibold text-lg">{submitter?.full_name || 'Unknown User'}</div>
+                            <div className="text-xs text-gray-500">{submitter?.email}</div>
+                            <div className="text-xs text-gray-400">Submitted by User ID: {venue?.submitted_by || 'N/A'}</div>
                           </div>
-                        </div>
-                        <div className="mb-4">
+      </div>
+
+                        {/* Venue Details */}
+                        <div className="mb-4 space-y-2">
                           <h3 className="font-bold text-xl mb-2">Venue Details</h3>
-                          <div className="grid grid-cols-1 gap-2">
-                            {Object.entries(sv.venue).map(([key, value]) => (
-                              <div key={key} className="flex justify-between border-b border-gray-200 py-1 text-sm">
-                                <span className="font-medium text-gray-700 dark:text-gray-300">{key.replace(/_/g, ' ')}</span>
-                                <span className="text-gray-900 dark:text-white">{String(value)}</span>
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                            <DetailItem label="Name" value={venue.name} />
+                            <DetailItem label="Type" value={venue.type} />
+                            <DetailItem label="Description" value={venue.description} />
+                            <DetailItem label="Address" value={`${venue.address}, ${venue.city}, ${venue.state} - ${venue.pincode}`} />
+                            <DetailItem label="Capacity" value={`${venue.capacity} people`} />
+                            <DetailItem label="Area" value={venue.area} />
+                            {venue.dimensions && <DetailItem label="Dimensions" value={venue.dimensions} />} 
+                            <DetailItem label="Hourly Rate" value={`${venue.currency} ${venue.hourly_rate}`} />
+                            {venue.daily_rate && <DetailItem label="Daily Rate" value={`${venue.currency} ${venue.daily_rate}`} />}
+                            {venue.website && <DetailItem label="Website" value={venue.website} isLink={true} />} 
+                            <DetailItem label="Contact Name" value={venue.contact_name} />
+                            <DetailItem label="Contact Phone" value={venue.contact_phone} />
+                            <DetailItem label="Contact Email" value={venue.contact_email} />
+                            <DetailItem label="Status" value={venue.status} isCapitalized={true} />
+                            <DetailItem label="Approval Status" value={venue.approval_status} isCapitalized={true} />
+                            <DetailItem label="Submission Date" value={venue.submission_date ? new Date(venue.submission_date).toLocaleString() : 'N/A'} />
+                            {venue.rejection_reason && <DetailItem label="Rejection Reason" value={venue.rejection_reason} />}
+                            {venue.approved_by && <DetailItem label="Approved By" value={venue.approved_by} />} 
+                            {venue.approval_date && <DetailItem label="Approval Date" value={new Date(venue.approval_date).toLocaleString()} />} 
+                            <DetailItem label="Is Published" value={venue.is_published} isCapitalized={true} />
+                            <DetailItem label="Verified" value={venue.verified} isCapitalized={true} />
                           </div>
-                        </div>
-                        <div className="flex gap-2 mt-4">
-                          <Button variant="default" onClick={() => handleApprove(sv.venue.id)}>Approve</Button>
+    </div>
+
+                        {/* Venue Media (Images & Videos) */}
+                        {(venue.images?.length > 0 || venue.videos?.length > 0) && (
+                          <div className="mb-4 space-y-2">
+                            <h3 className="font-bold text-xl mb-2">Media</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {venue.images?.map((imageUrl, index) => (
+                                <img key={index} src={imageUrl} alt={`Venue Image ${index + 1}`} className="w-full h-48 object-cover rounded-md shadow" />
+                              ))}
+                              {venue.videos?.map((videoUrl, index) => (
+                                <video key={index} src={videoUrl} controls className="w-full h-48 object-cover rounded-md shadow" />
+                            ))}
+            </div>
+          </div>
+                        )}
+
+                        {/* Amenities */}
+                        {amenities.length > 0 && (
+                          <div className="mb-4 space-y-2">
+                            <h3 className="font-bold text-xl mb-2">Amenities</h3>
+                            <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 list-disc pl-5">
+                              {amenities.map(amenity => (
+                                <li key={amenity.id} className="text-gray-700 dark:text-gray-300">{amenity.name}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Slots */}
+                        {slots.length > 0 && (
+                          <div className="mb-4 space-y-2">
+                            <h3 className="font-bold text-xl mb-2">Available Slots (Upcoming)</h3>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm">
+                                <thead>
+                                  <tr className="bg-gray-100 dark:bg-gray-700">
+                                    <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Date</th>
+                                    <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Time</th>
+                                    <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Price</th>
+                                    <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Available</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {slots.map(slot => (
+                                    <tr key={slot.id} className="border-t border-gray-200 dark:border-gray-700">
+                                      <td className="py-2 px-4 text-sm text-gray-900 dark:text-white">{new Date(slot.date).toLocaleDateString()}</td>
+                                      <td className="py-2 px-4 text-sm text-gray-900 dark:text-white">{`${slot.start_time} - ${slot.end_time}`}</td>
+                                      <td className="py-2 px-4 text-sm text-gray-900 dark:text-white">{`${venue.currency} ${slot.price}`}</td>
+                                      <td className="py-2 px-4 text-sm text-gray-900 dark:text-white">{slot.available ? 'Yes' : 'No'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-wrap">
+                          {venue.approval_status === 'pending' && (
+                            <>
+                              <Button variant="default" onClick={() => handleApprove(venue.id)}>Approve</Button>
                           <input type="text" placeholder="Admin notes (optional)" value={adminNotes} onChange={e => setAdminNotes(e.target.value)} className="px-2 py-1 rounded border text-black" />
-                          <Button variant="destructive" onClick={() => handleReject(sv.venue.id)}>Reject</Button>
+                              <Button variant="destructive" onClick={() => handleReject(venue.id)}>Reject</Button>
                           <input type="text" placeholder="Rejection reason" value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} className="px-2 py-1 rounded border text-black" />
-                          <Button variant="ghost" onClick={() => { setSelectedVenue(null); setViewMode('list'); }}>Back</Button>
-                          <Button variant="outline" onClick={() => fetchActivityLogs(sv.venue.id)}>{showLogs ? 'Hide Logs' : 'Show Logs'}</Button>
+                            </>
+                          )}
+                          <Button variant="ghost" onClick={() => { setSelectedVenue(null); setViewMode('list'); }}>Back to List</Button>
+                          <Button variant="outline" onClick={() => fetchActivityLogs(venue.id)}>{showLogs ? 'Hide Logs' : 'Show Logs'}</Button>
                         </div>
+
+                        {/* Activity Logs */}
                         {showLogs && (
-                          <div className="mt-6">
+                          <div className="mt-6 space-y-2">
                             <h4 className="font-semibold mb-2">Activity Logs</h4>
                             {logsLoading ? (
                               <div>Loading logs...</div>
@@ -454,93 +699,76 @@ const SuperAdminDashboard: React.FC = () => {
                             )}
                           </div>
                         )}
-                      </div>
+        </div>
                     );
                   })()
-                ) : detailsLoading ? (
-                  <div className="text-center py-12">Loading details...</div>
                 ) : (
                   <div className="text-center py-12">Select a venue to view details.</div>
+                  )
                 )
               )}
             </section>
           )}
 
           {activeTab === "users" && (
-            <section className="p-8 space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h2>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
-        </div>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">User Management</h3>
-                <p className="text-gray-600 dark:text-gray-400">User management features will be implemented here.</p>
-      </div>
+            <section>
+              <h2 className="text-2xl font-semibold mb-4">User Management</h2>
+              <p>User management features will be implemented here.</p>
             </section>
           )}
 
           {activeTab === "reports" && (
-            <section className="p-8 space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h2>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline">
-                    <Download className="h-4 w-4 mr-2" />
-                    Export CSV
-                  </Button>
-                  <Button variant="outline">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </Button>
-      </div>
-    </div>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Reports & Analytics</h3>
-                <p className="text-gray-600 dark:text-gray-400">Reports and analytics features will be implemented here.</p>
-              </div>
+            <section>
+              <h2 className="text-2xl font-semibold mb-4">Reports</h2>
+              <p>Reporting features will be implemented here.</p>
             </section>
           )}
 
           {activeTab === "settings" && (
-            <section className="p-8 space-y-8">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Settings</h2>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Admin Settings</h3>
-                <p className="text-gray-600 dark:text-gray-400">Admin settings features will be implemented here.</p>
-              </div>
+            <section>
+              <h2 className="text-2xl font-semibold mb-4">Admin Settings</h2>
+              <p>Admin settings will be configured here.</p>
             </section>
           )}
 
           {activeTab === "admins" && (
-            <section className="p-8 space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Management</h2>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Admin
-                </Button>
-              </div>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Admin Management</h3>
-                <p className="text-gray-600 dark:text-gray-400">Admin management features will be implemented here.</p>
-              </div>
+            <section>
+              <h2 className="text-2xl font-semibold mb-4">Admin Management</h2>
+              <p>Admin management features will be implemented here.</p>
             </section>
             )}
         </main>
       </div>
+  );
+}
+
+function DetailItem({ label, value, isLink = false, isCapitalized = false }: { label: string; value: string | number | boolean | undefined | null; isLink?: boolean; isCapitalized?: boolean }) {
+  if (value === undefined || value === null || value === '') return null;
+
+  let displayValue = value.toString();
+  if (typeof value === 'boolean') {
+    displayValue = value ? 'Yes' : 'No';
+  } else if (isCapitalized && typeof value === 'string') {
+    displayValue = value.charAt(0).toUpperCase() + value.slice(1);
+  }
+
+  if (isLink) {
+  return (
+      <div>
+        <strong className="block text-sm font-medium text-gray-500 dark:text-gray-400">{label}:</strong>
+        <a href={displayValue} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          {displayValue}
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <strong className="block text-sm font-medium text-gray-500 dark:text-gray-400">{label}:</strong>
+      <span className="block text-sm text-gray-900 dark:text-white">{displayValue}</span>
     </div>
   );
-};
+}
 
 export default SuperAdminDashboard;

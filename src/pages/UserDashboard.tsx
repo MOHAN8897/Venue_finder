@@ -242,11 +242,11 @@ const UserDashboard: React.FC = () => {
         {dashboardStats.recentFavorites.length === 0 ? (
           <div className="text-gray-500 text-sm">No favorites available.</div>
         ) : (
-          <div className="space-y-2">
+        <div className="space-y-2">
             {memoizedRecentFavorites.map((favorite, idx) => (
               <FavoriteItem key={favorite.id || idx} favorite={favorite} />
-            ))}
-          </div>
+          ))}
+        </div>
         )}
       </div>
     </div>

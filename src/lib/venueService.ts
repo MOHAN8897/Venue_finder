@@ -44,6 +44,7 @@ export interface Venue {
   submission_date?: string;
   approval_date?: string;
   rejection_reason?: string;
+  approval_status?: 'pending' | 'approved' | 'rejected';
 }
 
 interface VenueWithOwner extends Venue {
@@ -65,22 +66,43 @@ export interface VenueFilters {
 
 export type VenueUpdateData = Record<string, never>;
 
+// Add this type for venue creation
+export interface VenueCreateInput {
+  venue_name: string;
+  venue_type: string;
+  address: string;
+  location_link: string;
+  website: string;
+  description: string;
+  map_embed_code: string;
+  capacity: number;
+  area: number;
+  amenities: string[];
+  image_urls: string[];
+  videos: string[];
+  price_per_hour: number;
+  price_per_day: number;
+  availability: string[];
+  contact_number: string;
+  email: string;
+  company: string;
+  user_id: string;
+  owner_id: string;
+  submitted_by: string;
+  status: string;
+  approval_status: string;
+  is_approved: boolean;
+  is_active: boolean;
+}
+
 export const venueService = {
   // Get featured venues for homepage
   getFeaturedVenues: async (limit: number = 6): Promise<Venue[]> => {
     try {
       const { data, error } = await supabase
         .from('venues')
-        .select(`
-          *,
-          owner:profiles!venues_owner_id_fkey(
-            email,
-            name,
-            full_name
-          )
-        `)
+        .select('*')
         .eq('status', 'approved')
-        .eq('verified', true)
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -90,11 +112,7 @@ export const venueService = {
         throw error;
       }
 
-      return (data || []).map((venue: VenueWithOwner) => ({
-        ...venue,
-        owner_email: venue.owner?.email,
-        owner_name: venue.owner?.full_name || venue.owner?.name
-      }));
+      return (data || []);
     } catch (error) {
       console.error('Error in getFeaturedVenues:', error);
       return [];
@@ -106,16 +124,8 @@ export const venueService = {
     try {
       const { data, error } = await supabase
         .from('venues')
-        .select(`
-          *,
-          owner:profiles!venues_owner_id_fkey(
-            email,
-            name,
-            full_name
-          )
-        `)
+        .select('*')
         .eq('status', 'approved')
-        .eq('verified', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -123,11 +133,7 @@ export const venueService = {
         throw error;
       }
 
-      return (data || []).map((venue: VenueWithOwner) => ({
-        ...venue,
-        owner_email: venue.owner?.email,
-        owner_name: venue.owner?.full_name || venue.owner?.name
-      }));
+      return (data || []);
     } catch (error) {
       console.error('Error in getAllVenues:', error);
       return [];
@@ -147,8 +153,7 @@ export const venueService = {
             full_name
           )
         `, { count: 'exact' })
-        .eq('status', 'approved')
-        .eq('verified', true);
+        .eq('status', 'approved');
 
       // Apply location filter
       if (filters.location) {
@@ -212,7 +217,6 @@ export const venueService = {
         `)
         .eq('id', id)
         .eq('status', 'approved')
-        .eq('verified', true)
         .single();
 
       if (error) {
@@ -354,23 +358,31 @@ export const venueService = {
   },
 
   // Create new venue
-  createVenue: async (venueData: Omit<Venue, 'id' | 'created_at' | 'updated_at' | 'rating' | 'total_reviews'>): Promise<string | null> => {
+  createVenue: async (venueData: VenueCreateInput): Promise<string | null> => {
     try {
+      // Ensure required fields are present
+      const fullVenueData: VenueCreateInput = {
+        ...venueData,
+        capacity: venueData.capacity ?? 0,
+        area: venueData.area ?? 0,
+        amenities: venueData.amenities ?? [],
+      };
       const { data, error } = await supabase
         .from('venues')
-        .insert(venueData)
+        .insert(fullVenueData)
         .select('id')
         .single();
-
+      console.log('[DEBUG] Insert response:', { data, error });
       if (error) {
         console.error('Error creating venue:', error);
         throw error;
       }
-
+      // Only return the id if data is present
       return data?.id || null;
     } catch (error) {
       console.error('Error in createVenue:', error);
-      return null;
+      // Return the error object for UI display
+      return error as string;
     }
   },
 
@@ -418,7 +430,7 @@ export const venueService = {
         *,
         owner:profiles(full_name)
       `)
-      .eq('owner_id', ownerId);
+      .or(`owner_id.eq.${ownerId},submitted_by.eq.${ownerId}`);
 
     if (error) {
       console.error('Error fetching venues for owner:', error);

@@ -2,22 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDatabase } from '../hooks/useDatabase';
-import { userService } from '../lib/userService';
-import type { UserProfile } from '../lib/userService';
 import { 
-  Save, 
-  Edit, 
   ArrowLeft,
-  Bell,
   Mail,
   Smartphone
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import Cropper from 'react-easy-crop';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { getCroppedImg, convertToWebP } from '../utils/cropImage';
+import AuthWrapper from '../components/AuthWrapper';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { Button } from '../components/ui/button';
 
 // Utility to omit preferences field
 function omitPreferences<T extends object>(obj: T): Partial<T> {
@@ -27,8 +23,8 @@ function omitPreferences<T extends object>(obj: T): Partial<T> {
 }
 
 const UserSettings: React.FC = () => {
-  const { user, updateProfile, loading: authLoading, refreshUserProfile } = useAuth();
-  const { isConnected, isLoading: dbLoading, refreshConnection } = useDatabase();
+  const { user, updateProfile, loading: authLoading } = useAuth();
+  const { isConnected, isLoading: dbLoading } = useDatabase();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -62,13 +58,6 @@ const UserSettings: React.FC = () => {
     review_alerts: true,
     message_alerts: true
   });
-
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number; } | null>(null);
-  const [cropModalOpen, setCropModalOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || dbLoading) return; // Wait for auth and db to finish
@@ -138,22 +127,13 @@ const UserSettings: React.FC = () => {
     }
   };
 
-  const handleRefresh = async () => {
-    setDataLoaded(false);
-    setError('');
-    await refreshConnection();
-    if (isConnected) {
-      await loadUserData();
-    }
-  };
-
   const handleProfileSave = async () => {
     try {
       setLoading(true);
       setError('');
       setSuccess('');
 
-      const updates: Partial<UserProfile> = {};
+      const updates: Partial<import('../context/AuthContext').UserProfile> = {};
       if (profileData.full_name !== (user?.full_name || user?.name || '')) {
         updates.full_name = profileData.full_name;
       }
@@ -176,7 +156,21 @@ const UserSettings: React.FC = () => {
       updates.notification_settings = settings;
 
       const safeUpdates = omitPreferences(updates);
-      const result = await updateProfile(safeUpdates as Partial<UserProfile>);
+      // Fix type for preferences if present
+      if ('preferences' in safeUpdates && safeUpdates.preferences) {
+        // Convert all values to string | number | boolean
+        const fixedPrefs: Record<string, string | number | boolean> = {};
+        Object.entries(safeUpdates.preferences).forEach(([k, v]) => {
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+            fixedPrefs[k] = v;
+          } else {
+            fixedPrefs[k] = String(v);
+          }
+        });
+        (safeUpdates as any).preferences = fixedPrefs;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- safe cast for Supabase update
+      const result = await updateProfile(safeUpdates as any);
 
       if (result.success) {
         setIsEditing(false);
@@ -198,51 +192,12 @@ const UserSettings: React.FC = () => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const onCropComplete = (_croppedArea: unknown, croppedAreaPixels: { x: number; y: number; width: number; height: number; }) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
-
-  const handleAvatarSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setSelectedImage(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setCropModalOpen(true);
-  };
-
-  const handleCropSave = async () => {
-    if (!selectedImage || !croppedAreaPixels) return;
-    setLoading(true);
-    try {
-      const croppedBlob = await getCroppedImg(previewUrl!, croppedAreaPixels);
-      // Convert cropped image to WebP
-      const webpBlob = await convertToWebP(new File([croppedBlob], selectedImage.name, { type: croppedBlob.type }));
-      const webpFile = new File([webpBlob], selectedImage.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
-      const result = await userService.uploadUserAvatar(webpFile);
-      if (result.success) {
-        setSuccess('Avatar updated successfully!');
-        await refreshUserProfile();
-        await loadUserData();
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(result.error || 'Failed to upload avatar');
-      }
-    } catch {
-      setError('Failed to crop/upload avatar');
-    } finally {
-      setLoading(false);
-      setCropModalOpen(false);
-      setSelectedImage(null);
-      setPreviewUrl(null);
-    }
-  };
-
   if (authLoading || dbLoading || loading) {
     return <LoadingSpinner />;
   }
 
   return (
-    <AuthWrapper>
+    <AuthWrapper requireAuth={true}>
       <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
             <Link to="/dashboard" className="flex items-center text-sm text-blue-600 hover:underline mb-4">
@@ -252,9 +207,7 @@ const UserSettings: React.FC = () => {
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
             {!isEditing && (
-              <Button variant="outlined" onClick={() => setIsEditing(true)} startIcon={<Edit />}>
-                Edit Profile
-              </Button>
+              <Button variant="outline" onClick={() => setIsEditing(true)} className="ml-2">Edit</Button>
             )}
           </div>
           <p className="text-gray-600 mt-1">Manage your profile, preferences, and account settings.</p>
@@ -276,18 +229,6 @@ const UserSettings: React.FC = () => {
                 <CardDescription>Manage how you receive notifications from VenueFinder.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
-            <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-700 flex items-center"><Bell className="mr-2 h-5 w-5"/> General</h4>
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <Label htmlFor="review-alerts">New reviews and ratings</Label>
-                    <Switch id="review-alerts" checked={settings.review_alerts} onCheckedChange={(val) => handleSettingsChange('review_alerts', val)} disabled={!isEditing} />
-              </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <Label htmlFor="message-alerts">New messages in your inbox</Label>
-                    <Switch id="message-alerts" checked={settings.message_alerts} onCheckedChange={(val) => handleSettingsChange('message_alerts', val)} disabled={!isEditing} />
-                </div>
-              </div>
-
                 <div className="space-y-4">
                   <h4 className="font-semibold text-gray-700 flex items-center"><Mail className="mr-2 h-5 w-5"/> Email Notifications</h4>
                   <div className="flex items-center justify-between p-3 rounded-lg border">
@@ -319,36 +260,19 @@ const UserSettings: React.FC = () => {
         {isEditing && (
           <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm p-4 border-t z-10">
             <div className="max-w-4xl mx-auto flex justify-end space-x-4">
-              <Button variant="outlined" onClick={() => setIsEditing(false)} disabled={loading}>
-                Cancel
-              </Button>
+              <Button variant="default" onClick={() => setIsEditing(false)} disabled={loading}>Cancel</Button>
               <Button
-                variant="contained"
-                color="primary"
+                variant="outline"
                 onClick={handleProfileSave}
                 disabled={loading}
-                startIcon={<Save />}
               >
-                {loading ? 'Saving...' : 'Save All Changes'}
+                Save
               </Button>
               </div>
             </div>
           )}
         </div>
 
-      <Dialog open={cropModalOpen} onClose={() => setCropModalOpen(false)}>
-          <div className="relative h-64">
-                <Cropper
-              image={previewUrl || ''}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              </div>
-          </Dialog>
     </AuthWrapper>
   );
 };

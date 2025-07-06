@@ -1556,3 +1556,470 @@ EXCEPTION WHEN OTHERS THEN
     RETURN jsonb_build_object('success', false, 'error', SQLERRM);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+## 2024-08-01: Comprehensive Venue Approval, Owner Management, and Logging System Migration
+
+This migration ensures all required columns, triggers, indexes, RLS policies, and functions are present for a robust venue approval and management workflow, including owner promotion, admin logging, and real-time support.
+
+### 1. Venues Table: Approval & Audit Columns
+```sql
+ALTER TABLE public.venues 
+ADD COLUMN IF NOT EXISTS submitted_by uuid REFERENCES auth.users(id),
+ADD COLUMN IF NOT EXISTS approval_status text DEFAULT 'pending' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
+ADD COLUMN IF NOT EXISTS approval_date timestamp with time zone,
+ADD COLUMN IF NOT EXISTS approved_by uuid REFERENCES auth.users(id),
+ADD COLUMN IF NOT EXISTS rejection_reason text,
+ADD COLUMN IF NOT EXISTS submission_date timestamp with time zone DEFAULT now();
+```
+
+### 2. Venue Approval Logs Table
+```sql
+CREATE TABLE IF NOT EXISTS public.venue_approval_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+    admin_id uuid REFERENCES auth.users(id),
+    action text NOT NULL CHECK (action IN ('approved', 'rejected', 'pending_review')),
+    reason text,
+    admin_notes text,
+    created_at timestamp with time zone DEFAULT now()
+);
+```
+
+### 3. Super Admin Credentials Table
+```sql
+CREATE TABLE IF NOT EXISTS public.super_admin_credentials (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id text UNIQUE NOT NULL,
+    password_hash text NOT NULL,
+    email text UNIQUE NOT NULL,
+    full_name text NOT NULL,
+    is_active boolean DEFAULT true,
+    last_login timestamp with time zone,
+    login_attempts integer DEFAULT 0,
+    locked_until timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+```
+
+### 4. Profiles Table: Owner Management Columns
+```sql
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS owner_id text UNIQUE,
+ADD COLUMN IF NOT EXISTS owner_verified boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS owner_verification_date timestamp with time zone;
+```
+
+### 5. Indexes for Fast Lookup
+```sql
+CREATE INDEX IF NOT EXISTS idx_venues_approval_status ON public.venues(approval_status);
+CREATE INDEX IF NOT EXISTS idx_venues_submitted_by ON public.venues(submitted_by);
+CREATE INDEX IF NOT EXISTS idx_venues_approval_date ON public.venues(approval_date);
+CREATE INDEX IF NOT EXISTS idx_venue_approval_logs_venue_id ON public.venue_approval_logs(venue_id);
+CREATE INDEX IF NOT EXISTS idx_venue_approval_logs_admin_id ON public.venue_approval_logs(admin_id);
+```
+
+### 6. RLS Policies
+```sql
+-- Enable RLS on all relevant tables
+ALTER TABLE public.venues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.venue_approval_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.super_admin_credentials ENABLE ROW LEVEL SECURITY;
+
+-- Venues: Only owners can update/delete their venues; only admins/super_admins can approve/reject; public can read only approved/active venues
+CREATE POLICY "Public can view approved venues" ON public.venues
+    FOR SELECT USING (approval_status = 'approved' AND is_active = true);
+CREATE POLICY "Owner can manage own venues" ON public.venues
+    FOR UPDATE USING (submitted_by = auth.uid());
+CREATE POLICY "Owner can delete own venues" ON public.venues
+    FOR DELETE USING (submitted_by = auth.uid());
+CREATE POLICY "Admins can approve/reject venues" ON public.venues
+    FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin')));
+
+-- Venue Approval Logs: Only super admins can view/insert
+CREATE POLICY "Super admins can view all approval logs" ON public.venue_approval_logs
+    FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role = 'super_admin'));
+CREATE POLICY "Super admins can insert approval logs" ON public.venue_approval_logs
+    FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- Super Admin Credentials: Private by default
+CREATE POLICY "Super admin credentials are private" ON public.super_admin_credentials
+    FOR ALL USING (false);
+```
+
+### 7. Triggers for Owner Promotion & Audit
+```sql
+-- Assign owner_id when user becomes owner
+CREATE OR REPLACE FUNCTION public.assign_owner_id()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.role = 'owner' AND OLD.role != 'owner' THEN
+        NEW.owner_id := 'OWNER_' || substr(NEW.user_id::text, 1, 8);
+        NEW.owner_verified := false;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_assign_owner_id ON public.profiles;
+CREATE TRIGGER trigger_assign_owner_id
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.assign_owner_id();
+
+-- Update venues.updated_at on change
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_venues_updated_at ON public.venues;
+CREATE TRIGGER update_venues_updated_at
+    BEFORE UPDATE ON public.venues
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+```
+
+### 8. Approval & Rejection Functions
+```sql
+-- Approve venue
+CREATE OR REPLACE FUNCTION public.approve_venue(
+    venue_uuid uuid,
+    admin_notes text DEFAULT NULL
+)
+RETURNS jsonb AS $$
+DECLARE
+    venue_record public.venues;
+    user_profile public.profiles;
+    result jsonb;
+BEGIN
+    SELECT * INTO venue_record FROM public.venues WHERE id = venue_uuid;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Venue not found');
+    END IF;
+    SELECT * INTO user_profile FROM public.profiles WHERE user_id = venue_record.submitted_by;
+    UPDATE public.venues 
+    SET approval_status = 'approved',
+        approval_date = now(),
+        approved_by = auth.uid(),
+        is_approved = true,
+        is_active = true
+    WHERE id = venue_uuid;
+    IF user_profile.role != 'owner' THEN
+        UPDATE public.profiles 
+        SET role = 'owner',
+            owner_verified = true,
+            owner_verification_date = now()
+        WHERE user_id = venue_record.submitted_by;
+    END IF;
+    INSERT INTO public.venue_approval_logs (
+        venue_id, admin_id, action, admin_notes
+    ) VALUES (
+        venue_uuid, auth.uid(), 'approved', admin_notes
+    );
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Venue approved successfully',
+        'venue_id', venue_uuid
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Reject venue
+CREATE OR REPLACE FUNCTION public.reject_venue(
+    venue_uuid uuid,
+    rejection_reason text,
+    admin_notes text DEFAULT NULL
+)
+RETURNS jsonb AS $$
+DECLARE
+    venue_record public.venues;
+    result jsonb;
+BEGIN
+    SELECT * INTO venue_record FROM public.venues WHERE id = venue_uuid;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Venue not found');
+    END IF;
+    UPDATE public.venues 
+    SET approval_status = 'rejected',
+        rejection_reason = rejection_reason,
+        is_approved = false,
+        is_active = false
+    WHERE id = venue_uuid;
+    INSERT INTO public.venue_approval_logs (
+        venue_id, admin_id, action, reason, admin_notes
+    ) VALUES (
+        venue_uuid, auth.uid(), 'rejected', rejection_reason, admin_notes
+    );
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Venue rejected successfully',
+        'venue_id', venue_uuid
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 9. Delete, Resubmit, Hide/Unlist Venue Functions
+```sql
+-- Delete venue (soft delete)
+CREATE OR REPLACE FUNCTION public.delete_venue(
+    venue_uuid uuid
+)
+RETURNS jsonb AS $$
+BEGIN
+    UPDATE public.venues SET is_active = false WHERE id = venue_uuid;
+    RETURN jsonb_build_object('success', true, 'message', 'Venue deleted (unlisted)');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Resubmit venue (after rejection)
+CREATE OR REPLACE FUNCTION public.resubmit_venue(
+    venue_uuid uuid
+)
+RETURNS jsonb AS $$
+BEGIN
+    UPDATE public.venues 
+    SET approval_status = 'pending',
+        rejection_reason = NULL,
+        submission_date = now(),
+        is_active = true
+    WHERE id = venue_uuid;
+    RETURN jsonb_build_object('success', true, 'message', 'Venue resubmitted for approval');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 10. Activity Log Fetch Function
+```sql
+-- Fetch activity logs for a venue
+CREATE OR REPLACE FUNCTION public.get_venue_activity_logs(
+    venue_uuid uuid
+)
+RETURNS TABLE (
+    log_id uuid,
+    admin_id uuid,
+    action text,
+    reason text,
+    admin_notes text,
+    created_at timestamp with time zone
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT id, admin_id, action, reason, admin_notes, created_at
+    FROM public.venue_approval_logs
+    WHERE venue_id = venue_uuid
+    ORDER BY created_at DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+---
+
+**All changes above must be executed in Supabase SQL Editor or via CLI, and this file must be kept as the source of truth.**
+
+**See also:**
+- `DATABASE_POLICIES.md` for RLS details
+- `DATABASE_TRIGGERS.md` for triggers
+- `DATABASE_INDEXES.md` for indexes
+- `DATABASE_TABLES.md` for table structure
+
+---
+
+## [2024-08-01] Remove password hashing for super admin login (TEMPORARY)
+
+- Updated `public.super_admin_credentials` to store the password in plain text for the super admin account (`superadmin@venuefinder.com`).
+- Updated `public.authenticate_super_admin` function to compare the password as plain text only.
+- **TEMPORARY:** Password for superadmin is now: `King1#889790@`
+- This is for development/debug only. Revert to hashed passwords before production.
+
+```sql
+-- Migration: Remove hashing for super admin login and set plain password
+UPDATE public.super_admin_credentials
+SET password_hash = 'King1#889790@'
+WHERE email = 'superadmin@venuefinder.com';
+
+CREATE OR REPLACE FUNCTION public.authenticate_super_admin(
+    admin_id_input text,
+    password_input text
+)
+RETURNS jsonb AS $$
+DECLARE
+    admin_record public.super_admin_credentials;
+    result jsonb;
+BEGIN
+    -- Get admin credentials
+    SELECT * INTO admin_record 
+    FROM public.super_admin_credentials 
+    WHERE admin_id = admin_id_input AND is_active = true;
+    
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Invalid credentials');
+    END IF;
+    
+    -- Check if account is locked
+    IF admin_record.locked_until IS NOT NULL AND admin_record.locked_until > now() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Account is temporarily locked');
+    END IF;
+    
+    -- Verify password (plain text)
+    IF admin_record.password_hash = password_input THEN
+        -- Reset login attempts and update last login
+        UPDATE public.super_admin_credentials 
+        SET login_attempts = 0,
+            last_login = now(),
+            locked_until = NULL
+        WHERE id = admin_record.id;
+        
+        RETURN jsonb_build_object(
+            'success', true,
+            'admin_id', admin_record.admin_id,
+            'email', admin_record.email,
+            'full_name', admin_record.full_name
+        );
+    ELSE
+        -- Increment login attempts
+        UPDATE public.super_admin_credentials 
+        SET login_attempts = login_attempts + 1,
+            locked_until = CASE 
+                WHEN login_attempts >= 4 THEN now() + interval '15 minutes'
+                ELSE NULL 
+            END
+        WHERE id = admin_record.id;
+        
+        RETURN jsonb_build_object('success', false, 'error', 'Invalid credentials');
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+```
+
+## [2024-07-05] Add missing columns to public.venues for new venue listing form
+
+To support all fields collected by the new multi-step venue listing form, add the following columns to the venues table:
+
+```sql
+ALTER TABLE public.venues
+  ADD COLUMN IF NOT EXISTS location_link text, -- Google Maps link (optional)
+  ADD COLUMN IF NOT EXISTS map_embed_code text, -- Google Maps embed HTML (optional)
+  ADD COLUMN IF NOT EXISTS videos text[], -- Video URLs (YouTube/Vimeo, optional)
+  ADD COLUMN IF NOT EXISTS availability text[], -- Available days (array of strings, optional)
+  ADD COLUMN IF NOT EXISTS contact_number text, -- Contact phone (required)
+  ADD COLUMN IF NOT EXISTS email text, -- Contact email (required)
+  ADD COLUMN IF NOT EXISTS company text; -- Company/organization (optional)
+```
+
+**Explanation:**
+- `location_link`: Stores the Google Maps link for the venue location.
+- `map_embed_code`: Stores the Google Maps iframe HTML for embedding a map.
+- `videos`: Stores an array of video URLs (YouTube/Vimeo) for the venue.
+- `availability`: Stores an array of available days (e.g., ["Monday", "Tuesday"]).
+- `contact_number`: Stores the venue's contact phone number.
+- `email`: Stores the venue's contact email address.
+- `company`: Stores the company or organization name (if provided).
+
+**This migration ensures all fields from the new venue listing form can be saved in the venues table.**
+
+# Venues Table (2024-08-01)
+
+## Table Definition
+```sql
+CREATE TYPE venue_type AS ENUM (
+  'Event Hall', 'Conference Room', 'Wedding Venue', 'Restaurant', 'Hotel',
+  'Outdoor Space', 'Theater', 'Gallery', 'Sports Venue', 'Community Center'
+);
+
+CREATE TABLE public.venues (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_name text NOT NULL,
+  venue_type venue_type NOT NULL,
+  address text NOT NULL,
+  location_link text,
+  website text,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  submitted_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+```
+
+## Indexes
+```sql
+CREATE INDEX idx_venues_venue_type ON public.venues(venue_type);
+CREATE INDEX idx_venues_owner_id ON public.venues(owner_id);
+CREATE INDEX idx_venues_created_at ON public.venues(created_at);
+```
+
+## Row Level Security (RLS) Policies
+```sql
+ALTER TABLE public.venues ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can insert their own venues" ON public.venues
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id AND auth.uid() = owner_id AND auth.uid() = submitted_by);
+
+CREATE POLICY "Anyone can view venues" ON public.venues
+  FOR SELECT
+  USING (true);
+
+CREATE POLICY "Venue owners can update their own venues" ON public.venues
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = owner_id);
+
+CREATE POLICY "Venue owners can delete their own venues" ON public.venues
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = owner_id);
+```
+
+## Triggers
+```sql
+CREATE TRIGGER update_venues_updated_at BEFORE UPDATE ON public.venues
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+---
+
+**2024-08-01:** Created new venues table for modern venue listing form. Includes all required fields, RLS, indexes, and triggers. Old table, types, and policies removed. All changes tested and synced with Supabase.
+
+---
+
+## 2024-08-01: Add capacity, area, and amenities columns to venues table
+**Purpose:** Support advanced specifications and amenities selection in venue listing form.
+
+```sql
+ALTER TABLE venues
+ADD COLUMN IF NOT EXISTS capacity integer NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS area integer NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS amenities text[] NOT NULL DEFAULT '{}';
+```
+
+- These fields are required for the new Specifications step in the frontend form.
+- amenities is a text[] array to store selected amenity IDs.
+
+---
+
+## 2024-08-01: Add media, pricing, availability, and contact columns to venues table
+**Purpose:** Support media uploads, pricing, booking, and contact information in venue listing form.
+
+```sql
+ALTER TABLE venues
+ADD COLUMN IF NOT EXISTS photos text[] NOT NULL DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS videos text[] NOT NULL DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS price_per_hour numeric(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS price_per_day numeric(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS availability text[] NOT NULL DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS contact_number text,
+ADD COLUMN IF NOT EXISTS email text,
+ADD COLUMN IF NOT EXISTS company text;
+```
+
+- These fields are required for the new Media, Pricing, and Contact steps in the frontend form.
+- All columns are simple types to avoid foreign key issues.
+
+---

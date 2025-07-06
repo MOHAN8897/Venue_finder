@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, AlertCircle, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface SuperAdminProtectedRouteProps {
   children: React.ReactNode;
@@ -8,46 +9,93 @@ interface SuperAdminProtectedRouteProps {
 
 const SuperAdminProtectedRoute: React.FC<SuperAdminProtectedRouteProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Initialize to false, will be set true in check function
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const checkSuperAdminAuth = () => {
-      try {
-        const session = localStorage.getItem('superAdminSession');
-        if (!session) {
-          setIsAuthenticated(false);
-          setLoading(false);
-          return;
-        }
-
-        const sessionData = JSON.parse(session);
-        const loginTime = new Date(sessionData.loginTime);
-        const currentTime = new Date();
-        const hoursDiff = (currentTime.getTime() - loginTime.getTime()) / (1000 * 60 * 60);
-
-        // Check if session is expired (24 hours)
-        if (hoursDiff > 24) {
-          localStorage.removeItem('superAdminSession');
-          setIsAuthenticated(false);
-          setLoading(false);
-          return;
-        }
-
-        setIsAuthenticated(true);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error checking super admin authentication:', error);
-        localStorage.removeItem('superAdminSession');
+  const checkSuperAdminAuth = async () => {
+    console.log('checkSuperAdminAuth called'); // DEBUG
+    setLoading(true); // Set loading true at the start of every check
+    try {
+      let session = localStorage.getItem('superAdminSession');
+      if (!session) {
+        session = sessionStorage.getItem('superAdminSession');
+      }
+      // Check Supabase session as well
+      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+      if (!session || !supabaseSession) {
         setIsAuthenticated(false);
-        setLoading(false);
+        return;
+      }
+
+      console.log('SuperAdminProtectedRoute: session found (in checkSuperAdminAuth):', session); // DEBUG
+
+      const sessionData = JSON.parse(session);
+      console.log('SuperAdminProtectedRoute: parsed sessionData (in checkSuperAdminAuth):', sessionData); // DEBUG
+
+      const loginTime = new Date(sessionData.loginTime);
+      const currentTime = new Date();
+      const hoursDiff = (currentTime.getTime() - loginTime.getTime()) / (1000 * 60 * 60);
+
+      if (hoursDiff > 24) {
+        console.log('Session expired, clearing.'); // DEBUG
+        localStorage.removeItem('superAdminSession');
+        sessionStorage.removeItem('superAdminSession');
+        setIsAuthenticated(false);
+        return;
+      }
+
+      console.log('Session valid, authenticating.'); // DEBUG
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Error checking super admin authentication (in checkSuperAdminAuth):', error); // DEBUG
+      localStorage.removeItem('superAdminSession');
+      sessionStorage.removeItem('superAdminSession');
+      setIsAuthenticated(false);
+    } finally {
+      setLoading(false); // Always set loading false at the end
+    }
+  };
+
+  useEffect(() => {
+    // Initial check on mount
+    checkSuperAdminAuth();
+
+    // Event listener for localStorage changes (native 'storage' event)
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === 'superAdminSession') {
+        console.log('localStorage ' + event.key + ' changed, re-checking auth (from storage event).', event.newValue); // DEBUG
+        checkSuperAdminAuth();
       }
     };
 
-    checkSuperAdminAuth();
-  }, []);
+    // Event listener for sessionStorage changes (custom event)
+    const handleSessionStorageUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.key === 'superAdminSession') {
+        console.log('sessionStorage ' + customEvent.detail.key + ' updated, re-checking auth (from custom event).', customEvent.detail.newValue); // DEBUG
+        checkSuperAdminAuth();
+      }
+    };
 
-  if (loading) {
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('sessionStorageUpdated', handleSessionStorageUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('sessionStorageUpdated', handleSessionStorageUpdate as EventListener);
+    };
+  }, []); // Empty dependency array, events will trigger re-checks
+
+  // Effect to handle redirection based on authentication status
+  useEffect(() => {
+    if (isAuthenticated === false) {
+      console.log('isAuthenticated is false, navigating to login.'); // DEBUG
+      navigate('/super-admin/login', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Show loading spinner while authentication status is being determined
+  if (loading || isAuthenticated === null) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
         <div className="text-center">
@@ -60,6 +108,9 @@ const SuperAdminProtectedRoute: React.FC<SuperAdminProtectedRouteProps> = ({ chi
     );
   }
 
+  // If not authenticated and not loading, it means checkSuperAdminAuth set isAuthenticated to false
+  // and the useEffect above should have navigated. This is a fallback to show the access denied screen
+  // in case navigation fails or is delayed.
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
@@ -72,7 +123,7 @@ const SuperAdminProtectedRoute: React.FC<SuperAdminProtectedRouteProps> = ({ chi
             You must be logged in as a super administrator to access this page.
           </p>
           <button
-            onClick={() => navigate('/super-admin/login')}
+            onClick={() => navigate('/super-admin/login', { replace: true })}
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold flex items-center justify-center mx-auto"
           >
             <Shield className="h-5 w-5 mr-2" />

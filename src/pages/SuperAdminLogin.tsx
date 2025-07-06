@@ -1,57 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { 
-  Shield, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  AlertCircle, 
-  Loader2,
-  Building2,
-  Users,
-  Settings,
-  BarChart3
-} from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react'; // Import Eye icons
+
+const SUPER_ADMIN_EMAIL = 'superadmin@venuefinder.com'; 
+const ALLOWED_SUPER_ADMIN_EMAILS = [SUPER_ADMIN_EMAIL, 'new.superadmin@venuefinder.com', 'sai@gmail.com']; // Add sai@gmail.com
 
 const SuperAdminLogin: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(''); // Make email editable
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // State for show/hide password
+  const emailInputRef = useRef<HTMLInputElement>(null); // Ref for email input
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // If already signed in as super admin, redirect
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email === SUPER_ADMIN_EMAIL) {
+        navigate('/super-admin/dashboard');
+      }
+    });
+    // Auto-focus on email input
+    if (emailInputRef.current) emailInputRef.current.focus();
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      // Call the authenticate_super_admin function
-      const { data, error } = await supabase.rpc('authenticate_super_admin', {
-        email_input: email,
-        password_input: password
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email, // Use the editable email state
+        password
       });
+      
+      console.log('Supabase Auth signInWithPassword error:', authError); // DEBUG: Log Supabase Auth error
 
-      if (error) throw error;
-
-      if (data && data.success) {
-        // Store admin session
-        localStorage.setItem('superAdminSession', JSON.stringify({
-          adminId: data.admin_id,
-          email: data.email,
-          fullName: data.full_name,
+      if (authError) {
+        setError(authError.message || 'Supabase authentication failed');
+        setLoading(false);
+        return;
+      }
+      // Double check user is super admin
+      const { data } = await supabase.auth.getUser();
+      if (data?.user?.email && ALLOWED_SUPER_ADMIN_EMAILS.includes(data.user.email)) { // Check for both old and new super admin emails
+        // Store a custom session (if you still need it, otherwise this can be removed)
+        const sessionObj = {
+          adminId: data.user.id, // Use Supabase user ID for custom session
+          adminUuid: data.user.id, // Using user ID as UUID for simplicity
+          email: data.user.email,
+          fullName: data.user.user_metadata?.full_name || data.user.email,
           loginTime: new Date().toISOString()
-        }));
+        };
+        localStorage.setItem('superAdminSession', JSON.stringify(sessionObj));
+        sessionStorage.setItem('superAdminSession', JSON.stringify(sessionObj));
 
-        // Navigate to super admin dashboard
         navigate('/super-admin/dashboard');
       } else {
-        setError(data?.error || 'Authentication failed');
+        // If authenticated but not the super admin email, sign out and show error
+        await supabase.auth.signOut();
+        setError(`Unauthorized. Only ${ALLOWED_SUPER_ADMIN_EMAILS.join(' or ')} is allowed.`);
       }
-    } catch (err: unknown) {
-      console.error('Super admin login error:', err);
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
@@ -59,127 +71,62 @@ const SuperAdminLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Shield className="h-10 w-10 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      <div className="max-w-md w-full p-8 bg-white/10 rounded-2xl shadow-2xl border border-white/20">
+        <h1 className="text-3xl font-bold text-white mb-8 text-center">Super Admin Login</h1>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-semibold text-white mb-2">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              ref={emailInputRef}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              placeholder="Enter your email"
+              required
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Super Admin Portal</h1>
-          <p className="text-blue-200">Secure access to venue management system</p>
-        </div>
-
-        {/* Login Form */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="Enter your email"
-                  required
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <Shield className="h-5 w-5 text-blue-200" />
-                </div>
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent pr-12"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-blue-200 hover:text-white" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-blue-200 hover:text-white" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 flex items-center">
-                <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
-                <span className="text-red-200 text-sm">{error}</span>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Authenticating...
-                </>
-              ) : (
-                <>
-                  <Lock className="h-5 w-5 mr-2" />
-                  Access Admin Panel
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Security Notice */}
-          <div className="mt-6 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg">
-            <div className="flex items-start">
-              <Shield className="h-5 w-5 text-blue-300 mr-2 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-200">
-                <p className="font-semibold mb-1">Security Notice</p>
-                <p>This portal is restricted to authorized super administrators only. All access attempts are logged and monitored.</p>
-              </div>
+          <div>
+            <label className="block text-sm font-semibold text-white mb-2">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent pr-12"
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-blue-200 hover:text-white" />
+                ) : (
+                  <Eye className="h-5 w-5 text-blue-200 hover:text-white" />
+                )}
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Features Preview */}
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          <div className="bg-white/5 rounded-lg p-4 text-center">
-            <Building2 className="h-8 w-8 text-blue-300 mx-auto mb-2" />
-            <p className="text-blue-200 text-sm font-medium">Venue Management</p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 text-center">
-            <Users className="h-8 w-8 text-purple-300 mx-auto mb-2" />
-            <p className="text-purple-200 text-sm font-medium">User Management</p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 text-center">
-            <BarChart3 className="h-8 w-8 text-green-300 mx-auto mb-2" />
-            <p className="text-green-200 text-sm font-medium">Analytics</p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 text-center">
-            <Settings className="h-8 w-8 text-orange-300 mx-auto mb-2" />
-            <p className="text-orange-200 text-sm font-medium">System Settings</p>
-          </div>
-        </div>
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 flex items-center text-red-200 text-sm">
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Authenticating...' : 'Access Admin Panel'}
+          </button>
+        </form>
+        <p className="mt-6 text-center text-blue-200 text-sm">
+          Only <span className="font-bold">{ALLOWED_SUPER_ADMIN_EMAILS.join(' or ')}</span> is allowed to log in here.
+        </p>
       </div>
     </div>
   );

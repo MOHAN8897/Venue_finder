@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { VenueSubmissionService } from '../lib/venueSubmissionService';
 import LoadingSpinner from './LoadingSpinner';
 
 interface VenueOwnerProtectedRouteProps {
@@ -11,55 +10,53 @@ interface VenueOwnerProtectedRouteProps {
 const VenueOwnerProtectedRoute: React.FC<VenueOwnerProtectedRouteProps> = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [checkingVenues, setCheckingVenues] = useState(true);
-  const [hasVenues, setHasVenues] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
+  const [isAuthorizedOwner, setIsAuthorizedOwner] = useState(false);
 
   useEffect(() => {
-    const checkUserVenues = async () => {
-      if (authLoading) return;
+    console.log('[VenueOwnerProtectedRoute] useEffect triggered. authLoading:', authLoading, 'user:', user);
+
+    if (authLoading) {
+      console.log('[VenueOwnerProtectedRoute] Auth loading, returning early.');
+      return;
+    }
       
       if (!user) {
+      console.log('[VenueOwnerProtectedRoute] User not found, redirecting to signin.');
         navigate('/signin');
         return;
       }
 
-      try {
-        const userVenues = await VenueSubmissionService.getUserSubmittedVenues();
-        setHasVenues(userVenues.length > 0);
-        
-        if (userVenues.length === 0) {
-          // Redirect to list venue page if user has no venues
-          navigate('/list-venue');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking user venues:', error);
-        // On error, redirect to list venue page as fallback
-        navigate('/list-venue');
-        return;
-      } finally {
-        setCheckingVenues(false);
-      }
-    };
+    console.log('[VenueOwnerProtectedRoute] Checking user role:', user.role);
+    // Check if the user's role is 'owner' or 'super_admin'
+    if (user.role === 'owner' || user.role === 'super_admin') {
+      console.log('[VenueOwnerProtectedRoute] User is authorized (owner or super_admin).');
+      setIsAuthorizedOwner(true);
+    } else {
+      console.log('[VenueOwnerProtectedRoute] User is NOT authorized, role:', user.role, 'redirecting to list-venue.');
+      navigate('/list-venue'); // Or '/unauthorized' if preferred
+    }
+    setCheckingRole(false);
+    console.log('[VenueOwnerProtectedRoute] Finished checking role. isAuthorizedOwner:', isAuthorizedOwner);
+  }, [user, authLoading, navigate, isAuthorizedOwner]); // Added isAuthorizedOwner to dependencies for consistent logging
 
-    checkUserVenues();
-  }, [user, authLoading, navigate]);
-
-  if (authLoading || checkingVenues) {
+  if (authLoading || checkingRole) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <LoadingSpinner size="lg" text="Checking your venues..." />
-          <p className="mt-4 text-gray-600">Verifying venue access...</p>
+          <LoadingSpinner size="lg" text="Verifying owner status..." />
+          <p className="mt-4 text-gray-600">Checking your permissions...</p>
         </div>
       </div>
     );
   }
 
-  if (!hasVenues) {
-    return null; // Will redirect to list venue page
+  if (!isAuthorizedOwner) {
+    console.log('[VenueOwnerProtectedRoute] Not authorized, returning null (should have redirected).');
+    return null; // Should have redirected via navigate() if not authorized
   }
 
+  console.log('[VenueOwnerProtectedRoute] Authorized, rendering children.');
   return <>{children}</>;
 };
 

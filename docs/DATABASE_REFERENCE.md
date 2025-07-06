@@ -303,3 +303,8 @@ CREATE POLICY "Users can delete their own bookings" ON public.user_bookings
   - If status changes to 'rejected', user can resubmit.
 - These columns are used to display approval/rejection times in the Super Admin dashboard and user UI.
 - See CODE_CHANGE_LOG.md for SQL commands and policy details. 
+
+## 2024-08-01: Venue Approval, Owner Management, and Logging System
+
+- See `database/sql_commands.md` for the full migration SQL and explanations.
+- Includes: venues approval columns, approval logs, super admin credentials, owner management, all required indexes, RLS policies, triggers, and functions for approve/reject/delete/resubmit/fetch logs. 

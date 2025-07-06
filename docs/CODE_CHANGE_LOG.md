@@ -224,5 +224,16 @@
 - Added approved_at and rejected_at columns to venues table for tracking approval/rejection times.
 - Updated Super Admin dashboard to display and update these timestamps when status changes.
 
+## [2024-08-01 19:30] Comprehensive Venue Approval, Owner Management, and Logging System Migration
+
+- Added/ensured all required columns in `venues` and `profiles` for approval, audit, and owner management.
+- Created/ensured `venue_approval_logs` and `super_admin_credentials` tables.
+- Added/ensured all necessary indexes for fast lookup on approval and audit columns.
+- Implemented/ensured RLS policies for venues, approval logs, and super admin credentials.
+- Added/ensured triggers for owner promotion and venue audit.
+- Added/ensured functions for approve, reject, delete, resubmit, and fetch activity logs for venues.
+- Updated `sql_commands.md` as the single source of truth for all schema changes.
+- See `database/sql_commands.md` for full SQL and explanations.
+
 ## ...
 _Add new entries for each major change or bugfix._ 
