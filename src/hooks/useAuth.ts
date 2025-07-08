@@ -6,5 +6,5 @@ export const useAuth = () => {
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context as typeof context & { refreshUserProfile: () => Promise<void> };
+  return context; // Return the full context value, including version
 }; 

@@ -83,21 +83,6 @@ export default function BasicDetailsStep({ formData, updateFormData }: BasicDeta
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Location Link */}
-        <div className="space-y-2">
-          <Label htmlFor="locationLink" className="flex items-center gap-2 text-sm font-medium">
-            <Map className="w-4 h-4 text-primary" />
-            Google Maps Link
-          </Label>
-          <Input
-            id="locationLink"
-            value={formData.locationLink}
-            onChange={(e) => updateFormData({ locationLink: e.target.value })}
-            placeholder="https://maps.google.com/..."
-            className="transition-all duration-200 focus:shadow-md"
-          />
-        </div>
-
         {/* Website */}
         <div className="space-y-2">
           <Label htmlFor="website" className="flex items-center gap-2 text-sm font-medium">

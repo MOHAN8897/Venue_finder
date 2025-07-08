@@ -20,7 +20,6 @@ export interface VenueSubmissionData {
   contact_name: string;
   contact_phone: string;
   contact_email: string;
-  google_maps_link: string;
   images: string[];
   videos: string[];
 }
@@ -49,7 +48,7 @@ export interface UserVenue {
   images: string[];
   videos: string[];
   approval_status: string;
-  submission_date: string;
+  created_at: string;
   approval_date?: string;
   rejection_reason?: string;
   is_approved: boolean;
@@ -81,7 +80,6 @@ export class VenueSubmissionService {
       contact_name: venueData.contact_name,
       contact_phone: venueData.contact_phone,
       contact_email: venueData.contact_email,
-      google_maps_link: venueData.google_maps_link,
       images: venueData.images,
       videos: venueData.videos
     };
@@ -307,7 +305,6 @@ export class VenueSubmissionService {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contact_email)) {
       errors.push('Invalid email format');
     }
-    if (!data.google_maps_link?.trim()) errors.push('Google Maps link is required');
     if (data.images.length === 0) errors.push('At least one image is required');
 
     return {
@@ -414,7 +411,7 @@ export class VenueSubmissionService {
         .from('venues')
         .select('approval_status')
         .eq('submitted_by', userId)
-        .order('submission_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(); // Use maybeSingle to avoid errors if no venue exists
       if (error) {

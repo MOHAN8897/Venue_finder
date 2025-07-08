@@ -2023,3 +2023,46 @@ ADD COLUMN IF NOT EXISTS company text;
 - All columns are simple types to avoid foreign key issues.
 
 ---
+
+# Single Active Tab Session Enforcement (Snapchat Web Style)
+
+## 1. Add `active_tab_id` to `profiles` Table
+```sql
+ALTER TABLE profiles ADD COLUMN active_tab_id UUID DEFAULT NULL;
+```
+
+## 2. Enable RLS and Add Policy
+```sql
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Only active tab can update profile"
+ON profiles
+FOR UPDATE
+USING (
+  auth.uid() = user_id
+  AND active_tab_id::text = current_setting('request.headers.tab-id', true)
+);
+```
+
+## 3. (Optional) Create `tab_sessions` Audit Table
+```sql
+CREATE TABLE tab_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  tab_id UUID,
+  created_at TIMESTAMP DEFAULT now(),
+  is_active BOOLEAN DEFAULT true
+);
+```
+
+---
+
+**Purpose:**
+- Enforces that only the active tab can update the user profile.
+- Tracks tab-level login/logout for audit and analytics.
+- Ensures secure, single-tab session enforcement at the database level.
+
+**Logged:**
+- [ ] Migration applied to Supabase
+- [ ] RLS and policy tested
+- [ ] tab_sessions table used for audit (optional)

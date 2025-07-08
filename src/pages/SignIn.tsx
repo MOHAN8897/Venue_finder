@@ -13,13 +13,13 @@ const SignIn: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { user, loading: authLoading, signInWithGoogle, signInWithEmail, signUpWithEmail, refreshUserProfile } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
   // Redirect authenticated users
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
@@ -43,7 +43,7 @@ const SignIn: React.FC = () => {
       setError('');
       await signInWithGoogle();
       setSuccess(true);
-      setTimeout(() => navigate('/'), 1000);
+      // No need to navigate here; useEffect will handle redirect based on user role
     } catch (error) {
       setError('Failed to sign in with Google. Please try again.');
       console.error('Google sign in error:', error);
@@ -85,15 +85,12 @@ const SignIn: React.FC = () => {
       return;
     }
     const { error: signInError } = await signInWithEmail(email, password);
-    if (!signInError) {
-      await refreshUserProfile();
-      setLoading(false);
-      navigate('/', { replace: true }); // Immediate redirect after successful login
-      return;
-    }
     setLoading(false);
     if (signInError) {
       setError(signInError);
+    } else {
+      setSuccess(true);
+      // Don't navigate immediately - let the useEffect handle navigation when user state is set
     }
   };
 

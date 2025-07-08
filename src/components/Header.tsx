@@ -12,10 +12,10 @@ const Header: React.FC = () => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, loading: authLoading, refreshUserProfile } = useAuth();
+  const { user, signOut, loading: authLoading, version } = useAuth();
+  console.log('[Header] Render:', { user, authLoading, version });
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const [hasApprovedVenue, setHasApprovedVenue] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [wasUserPresent, setWasUserPresent] = useState(false);
 
   // Close profile menu when clicking outside
@@ -86,13 +86,12 @@ const Header: React.FC = () => {
       location.pathname !== '/signout'
     ) {
       toast.error('Session expired. Please sign in again.');
-      setProfileError('Session expired. Please sign in again.');
       // Auto-redirect to sign-in page
       navigate('/signin');
     }
     // Clear error if navigating to sign-in or sign-out
     if (location.pathname === '/signin' || location.pathname === '/signout') {
-      setProfileError(null);
+      // setProfileError(null); // This line was removed as per the edit hint
     }
   }, [user, authLoading, wasUserPresent, location.pathname]);
 

@@ -1,5 +1,58 @@
 # Code Change Log
 
+All code changes, edits, features, and bug fixes are documented here with timestamps and detailed descriptions.
+
+---
+
+## 2025-01-07 18:20:00 - Cross-Tab Session Synchronization Implementation
+
+**Changes Made:**
+- **AuthContext.tsx**: Major refactor to implement cross-tab session synchronization
+  - Added unique tab ID generation for each browser tab
+  - Implemented `syncUserStateToLocalStorage()` helper to manage localStorage updates with cross-tab events
+  - Added `handleCrossTabSync()` to listen for storage events and sync user state across tabs
+  - Implemented localStorage event listeners for real-time cross-tab communication
+  - Enhanced authentication initialization to check localStorage first before creating new sessions
+  - Fixed session management to properly handle multiple tabs with same user
+  - Added proper cleanup and state management for tab-specific authentication
+
+- **sessionService.ts**: Enhanced session management for multi-tab support
+  - Refactored session token management to use sessionStorage (tab-specific)
+  - Added `generateNewSession()` method for better session creation
+  - Implemented `getOrCreateSessionToken()` to manage session tokens per tab
+  - Enhanced session creation to support multiple tabs for same user
+  - Added tab-specific session tracking and cleanup
+  - Improved session persistence and recovery
+
+**Technical Details:**
+- Each browser tab now gets a unique tab ID and session token stored in sessionStorage
+- localStorage is used for cross-tab communication via storage events
+- Authentication state synchronizes instantly across all tabs when user logs in/out
+- Profile dropdown now renders correctly in all tabs
+- Session tracking improved with per-tab granularity
+- Fixed issues where duplicate sessions prevented proper authentication in multiple tabs
+
+**Files Modified:**
+- `src/context/AuthContext.tsx`
+- `src/lib/sessionService.ts`
+
+**Benefits:**
+- Users can now open the app in multiple tabs and see consistent authentication state
+- Profile dropdown renders properly in all tabs
+- No more authentication issues when using the app across multiple browser tabs
+- Improved session management and tracking
+- Better user experience with seamless multi-tab support
+
+**Testing Requirements:**
+- Test login in one tab and verify authentication appears in other tabs
+- Test logout in one tab and verify user is logged out in all tabs
+- Verify profile dropdown renders in all tabs after login
+- Test session persistence across browser refresh in multiple tabs
+
+---
+
+## 2025-01-07 - Previous Entries
+
 ## 2024-07-31
 - Initial project setup, Vite + React + Supabase
 - Added dynamic venue form config (`src/config/venueTypes.ts`)
@@ -234,6 +287,28 @@
 - Added/ensured functions for approve, reject, delete, resubmit, and fetch activity logs for venues.
 - Updated `sql_commands.md` as the single source of truth for all schema changes.
 - See `database/sql_commands.md` for full SQL and explanations.
+
+## [2024-07-08] Super Admin Dashboard Replacement
+
+- Removed all old Super Admin dashboard, login, and protected route components and pages.
+- Integrated new Super Admin dashboard from external GitHub repo:
+  - Copied all dashboard, layout, and UI components to `src/components/`
+  - Added new dashboard pages to `src/pages/super-admin/`
+  - Updated `src/App.tsx` to route all `/super-admin/*` paths to the new dashboard
+  - Removed all references to old SuperAdmin components and routes
+- Installed all new dependencies required by the dashboard (Radix UI, TanStack Query, etc.)
+- Verified that all tabs, pages, and navigation for the new Super Admin dashboard are now active and correctly imported.
+- This change fully replaces the old Super Admin system with the new, modern dashboard.
+
+## [2024-06-08] Super Admin Panel Security & Routing Fixes
+- Implemented `SuperAdminProtectedRoute` to restrict `/super-admin/*` access to signed-in super admins only.
+- Updated `App.tsx` to wrap super admin routes with this protection.
+- Audited and fixed sidebar/dashboard navigation for all required super admin sections (Main, Overview, Management, Venues, Users, Finance, Payments, Reports, System, Admins, Activity, Settings).
+- Verified all required dashboard components/pages exist and are imported.
+- Ran `npm install` and `npm run build` to ensure all dependencies and imports are correct.
+- Impact: Super admin panel is now secure, only accessible to super admins, and all navigation/pages load as expected.
+
+## [2024-08-03TIST] Updated VenueListingForm to upload images to Supabase Storage before saving venue, using VenueSubmissionService.uploadFiles. Now, submitted venues will have their images stored in the 'venue-images' bucket and the database will store the public URLs.
 
 ## ...
 _Add new entries for each major change or bugfix._ 

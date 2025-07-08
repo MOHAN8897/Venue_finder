@@ -41,7 +41,6 @@ export interface Venue {
   google_maps_link?: string;
   google_maps_embed_code?: string;
   is_published: boolean;
-  submission_date?: string;
   approval_date?: string;
   rejection_reason?: string;
   approval_status?: 'pending' | 'approved' | 'rejected';
@@ -71,10 +70,8 @@ export interface VenueCreateInput {
   venue_name: string;
   venue_type: string;
   address: string;
-  location_link: string;
   website: string;
   description: string;
-  map_embed_code: string;
   capacity: number;
   area: number;
   amenities: string[];
@@ -85,7 +82,7 @@ export interface VenueCreateInput {
   availability: string[];
   contact_number: string;
   email: string;
-  company: string;
+  owner_name: string;
   user_id: string;
   owner_id: string;
   submitted_by: string;

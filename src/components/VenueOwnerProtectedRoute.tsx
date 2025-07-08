@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -28,13 +28,13 @@ const VenueOwnerProtectedRoute: React.FC<VenueOwnerProtectedRouteProps> = ({ chi
       }
 
     console.log('[VenueOwnerProtectedRoute] Checking user role:', user.role);
-    // Check if the user's role is 'owner' or 'super_admin'
-    if (user.role === 'owner' || user.role === 'super_admin') {
-      console.log('[VenueOwnerProtectedRoute] User is authorized (owner or super_admin).');
+    // Check if the user's role is 'venue_owner' (partner) or 'owner' (website owner)
+    if (user.role === 'venue_owner' || user.role === 'owner') {
+      console.log('[VenueOwnerProtectedRoute] User is authorized (venue_owner or owner).');
       setIsAuthorizedOwner(true);
     } else {
       console.log('[VenueOwnerProtectedRoute] User is NOT authorized, role:', user.role, 'redirecting to list-venue.');
-      navigate('/list-venue'); // Or '/unauthorized' if preferred
+      setIsAuthorizedOwner(false);
     }
     setCheckingRole(false);
     console.log('[VenueOwnerProtectedRoute] Finished checking role. isAuthorizedOwner:', isAuthorizedOwner);
@@ -54,6 +54,11 @@ const VenueOwnerProtectedRoute: React.FC<VenueOwnerProtectedRouteProps> = ({ chi
   if (!isAuthorizedOwner) {
     console.log('[VenueOwnerProtectedRoute] Not authorized, returning null (should have redirected).');
     return null; // Should have redirected via navigate() if not authorized
+  }
+
+  if (user && user.role === 'owner') {
+    // Block owner from accessing venue owner routes
+    return <Navigate to="/super-admin/dashboard" replace />;
   }
 
   console.log('[VenueOwnerProtectedRoute] Authorized, rendering children.');

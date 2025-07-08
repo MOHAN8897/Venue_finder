@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDatabase } from '../hooks/useDatabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { 
   userService, 
   dashboardService,
@@ -92,6 +92,10 @@ const UserDashboard: React.FC = () => {
     if (!user) {
       navigate('/signin');
       return;
+    }
+    if (user && user.role === 'owner') {
+      // Block owner from accessing user dashboard
+      return <Navigate to="/super-admin/dashboard" replace />;
     }
     if (!isConnected) {
       setError('Database connection failed. Please check your connection and try again.');

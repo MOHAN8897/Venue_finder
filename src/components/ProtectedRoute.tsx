@@ -28,6 +28,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
+  if (user && user.role === 'owner') {
+    // Block owner from accessing normal user routes
+    return <Navigate to="/super-admin/dashboard" replace />;
+  }
+
   return <>{children}</>;
 };
 

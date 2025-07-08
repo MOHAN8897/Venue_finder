@@ -43,6 +43,13 @@
 - **Apply changes directly when possible.**
 - **If a change cannot be applied automatically, provide the command or instructions to the user.**
 
+## [2024-06-08] New Rule: Analyze Before Editing
+
+- **Always analyze the codebase for related logic, components, and dependencies before making any code changes.**
+- **Do not make changes on a whim; ensure all edits are informed by a thorough understanding of the current implementation.**
+- **This is a required best practice for all contributors and AI agents.**
+- **Document your analysis and reasoning in logs when making significant changes.**
+
 ---
 
 _These rules ensure project clarity, maintainability, and security. All contributors and AI agents must follow them strictly._ 

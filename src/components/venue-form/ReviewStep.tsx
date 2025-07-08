@@ -217,13 +217,9 @@ export default function ReviewStep({ formData }: ReviewStepProps) {
             <span className="text-sm text-muted-foreground">Email:</span>
             <span className="font-medium">{formData.email}</span>
           </div>
-          {formData.company && (
-            <div className="flex items-center gap-2">
-              <BuildingIcon className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Company:</span>
-              <span className="font-medium">{formData.company}</span>
-            </div>
-          )}
+          <div className="md:col-span-2">
+            <strong>Owner Name:</strong> {formData.ownerName || 'N/A'}
+          </div>
         </CardContent>
       </Card>
 

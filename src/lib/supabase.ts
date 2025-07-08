@@ -1,9 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://uledqmfntmblwreoaksi.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZWRxbWZudG1ibHdyZW9ha3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA0OTU2MjEsImV4cCI6MjA2NjA3MTYyMX0.lwusINGkcdk8DZAClao4HYCLkfDriN3iDc9VY3Lqiz4';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    fetch: (input, init = {}) => {
+      const tabId = sessionStorage.getItem('tabId');
+      // Ensure headers is always a plain object
+      let headers: Record<string, string> = {};
+      if (init.headers) {
+        if (typeof init.headers === 'object' && !(init.headers instanceof Headers)) {
+          headers = { ...init.headers } as Record<string, string>;
+        } else if (init.headers instanceof Headers) {
+          init.headers.forEach((value, key) => {
+            headers[key] = value;
+          });
+        }
+      }
+      headers['apikey'] = supabaseAnonKey;
+      if (tabId) {
+        headers['tab-id'] = tabId;
+      }
+      init.headers = headers;
+      return fetch(input, init);
+    },
+  },
+});
 
 // User profile interface
 interface UserProfile {

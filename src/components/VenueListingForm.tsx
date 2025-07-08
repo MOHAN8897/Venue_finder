@@ -32,10 +32,8 @@ export interface VenueFormData {
   venueName: string;
   venueType: string;
   address: string;
-  locationLink: string;
   website: string;
   description: string;
-  mapEmbedCode: string;
   capacity?: number;
   area?: number;
   amenities: string[];
@@ -46,7 +44,7 @@ export interface VenueFormData {
   availability: string[];
   contactNumber?: string;
   email?: string;
-  company?: string;
+  ownerName?: string;
 }
 
 export default function VenueListingForm() {
@@ -55,10 +53,8 @@ export default function VenueListingForm() {
     venueName: '',
     venueType: '',
     address: '',
-    locationLink: '',
     website: '',
     description: '',
-    mapEmbedCode: '',
     capacity: undefined,
     area: undefined,
     amenities: [],
@@ -69,7 +65,7 @@ export default function VenueListingForm() {
     availability: [],
     contactNumber: '',
     email: '',
-    company: '',
+    ownerName: '',
   });
   const updateFormData = (updates: Partial<VenueFormData>) => setFormData(prev => ({ ...prev, ...updates }));
   const [step, setStep] = useState(0);
@@ -82,7 +78,7 @@ export default function VenueListingForm() {
     e.preventDefault();
     setError(null);
     setSuccess(false);
-    if (!formData.venueName.trim() || !formData.venueType.trim() || !formData.address.trim() || !formData.description.trim() || !formData.mapEmbedCode.trim()) {
+    if (!formData.venueName.trim() || !formData.venueType.trim() || !formData.address.trim() || !formData.description.trim()) {
       setError('All fields are required.');
       return;
     }
@@ -101,25 +97,39 @@ export default function VenueListingForm() {
           reject(new Error('Submission timed out. Please check your connection and try again.'));
         }, 10000); // 10 seconds
       });
+      // --- Upload images to Supabase Storage before saving venue ---
+      let photoUrls: string[] = [];
+      if (formData.photos.length > 0) {
+        // Dynamically import the service to avoid circular deps
+        const { VenueSubmissionService } = await import('../lib/venueSubmissionService');
+        const uploadResults = await VenueSubmissionService.uploadFiles(formData.photos, 'venue-images');
+        const failed = uploadResults.filter(r => !r.success);
+        if (failed.length > 0) {
+          setError('Failed to upload one or more images: ' + failed.map(f => f.error).join(', '));
+          setSubmitting(false);
+          if (timeoutId) clearTimeout(timeoutId);
+          return;
+        }
+        photoUrls = uploadResults.map(r => r.url!);
+      }
+      // --- End image upload logic ---
       const payload = {
         venue_name: formData.venueName,
         venue_type: formData.venueType,
         address: formData.address,
-        location_link: formData.locationLink,
         website: formData.website,
         description: formData.description,
-        map_embed_code: formData.mapEmbedCode,
         capacity: formData.capacity || 0,
         area: formData.area || 0,
         amenities: formData.amenities || [],
-        photos: formData.photos.map(f => f.name), // or handle upload logic
+        photos: photoUrls, // Use uploaded URLs
         videos: formData.videos || [],
         price_per_hour: formData.pricePerHour || 0,
         price_per_day: formData.pricePerDay || 0,
         availability: formData.availability || [],
         contact_number: formData.contactNumber,
         email: formData.email,
-        company: formData.company,
+        owner_name: formData.ownerName,
         user_id: user.user_id,
         owner_id: user.user_id,
         submitted_by: user.user_id,
@@ -146,10 +156,8 @@ export default function VenueListingForm() {
           venueName: '',
           venueType: '',
           address: '',
-          locationLink: '',
           website: '',
           description: '',
-          mapEmbedCode: '',
           capacity: undefined,
           area: undefined,
           amenities: [],
@@ -160,7 +168,7 @@ export default function VenueListingForm() {
           availability: [],
           contactNumber: '',
           email: '',
-          company: '',
+          ownerName: '',
         });
         setStep(0);
       } else {
@@ -240,20 +248,6 @@ export default function VenueListingForm() {
             />
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Google Maps Link */}
-            <div className="space-y-2">
-              <Label htmlFor="locationLink" className="flex items-center gap-2 text-sm font-medium">
-                <Map className="w-4 h-4 text-primary" />
-                Google Maps Link
-              </Label>
-              <Input
-                id="locationLink"
-                value={formData.locationLink}
-                onChange={e => updateFormData({ locationLink: e.target.value })}
-                placeholder="https://maps.google.com/..."
-                className="transition-all duration-200 focus:shadow-md"
-              />
-            </div>
             {/* Website */}
             <div className="space-y-2">
               <Label htmlFor="website" className="flex items-center gap-2 text-sm font-medium">
@@ -304,26 +298,6 @@ export default function VenueListingForm() {
       )
     },
     {
-      title: 'Location Map',
-      content: (
-        <div>
-          <LocationStep
-            mapEmbedCode={formData.mapEmbedCode}
-            setMapEmbedCode={mapEmbedCode => updateFormData({ mapEmbedCode })}
-            isValid={!!formData.mapEmbedCode.trim()}
-          />
-          <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(1)}>
-              Back
-            </Button>
-            <Button onClick={() => setStep(3)} disabled={!formData.mapEmbedCode.trim()}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )
-    },
-    {
       title: 'Specifications',
       content: (
         <div>
@@ -333,10 +307,10 @@ export default function VenueListingForm() {
             isValid={!!formData.capacity && !!formData.area}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(2)}>
+            <Button variant="outline" onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button onClick={() => setStep(4)} disabled={!formData.capacity || !formData.area}>
+            <Button onClick={() => setStep(3)} disabled={!formData.capacity || !formData.area}>
               Next
             </Button>
           </div>
@@ -353,10 +327,10 @@ export default function VenueListingForm() {
             isValid={formData.photos.length > 0}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(3)}>
+            <Button variant="outline" onClick={() => setStep(2)}>
               Back
             </Button>
-            <Button onClick={() => setStep(5)} disabled={formData.photos.length === 0}>
+            <Button onClick={() => setStep(4)} disabled={formData.photos.length === 0}>
               Next
             </Button>
           </div>
@@ -373,10 +347,10 @@ export default function VenueListingForm() {
             isValid={!!formData.pricePerHour || !!formData.pricePerDay}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(4)}>
+            <Button variant="outline" onClick={() => setStep(3)}>
               Back
             </Button>
-            <Button onClick={() => setStep(6)} disabled={!formData.pricePerHour && !formData.pricePerDay}>
+            <Button onClick={() => setStep(5)} disabled={!formData.pricePerHour && !formData.pricePerDay}>
               Next
             </Button>
           </div>
@@ -393,10 +367,10 @@ export default function VenueListingForm() {
             isValid={!!formData.contactNumber && !!formData.email}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(5)}>
+            <Button variant="outline" onClick={() => setStep(4)}>
               Back
             </Button>
-            <Button onClick={() => setStep(7)} disabled={!formData.contactNumber || !formData.email}>
+            <Button onClick={() => setStep(6)} disabled={!formData.contactNumber || !formData.email}>
               Next
             </Button>
           </div>
@@ -416,25 +390,10 @@ export default function VenueListingForm() {
                 <div><strong>Name:</strong> {formData.venueName}</div>
                 <div><strong>Type:</strong> {formData.venueType}</div>
                 <div><strong>Address:</strong> {formData.address}</div>
-                <div><strong>Google Maps Link:</strong> {formData.locationLink}</div>
                 <div><strong>Website:</strong> {formData.website}</div>
                 <div className="md:col-span-2">
                   <strong>Description:</strong>
                   <div className="whitespace-pre-wrap text-muted-foreground mt-1 break-words max-h-40 overflow-y-auto border rounded p-2 bg-muted/30">{formData.description}</div>
-                </div>
-                <div className="md:col-span-2">
-                  <strong>Map Preview:</strong>
-                  {formData.mapEmbedCode && /^<iframe[\s\S]*<\/iframe>$/.test(formData.mapEmbedCode.trim()) ? (
-                    <div className="mt-2 border rounded overflow-hidden">
-                      <div className="aspect-video w-full">
-                        <div dangerouslySetInnerHTML={{ __html: formData.mapEmbedCode }} />
-                      </div>
-                    </div>
-                  ) : formData.mapEmbedCode ? (
-                    <div className="text-sm text-red-600">Invalid embed code. Please paste a valid Google Maps {'<iframe>'} embed code.</div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No map embed code provided.</p>
-                  )}
                 </div>
                 <div><strong>Capacity:</strong> {formData.capacity}</div>
                 <div><strong>Area (sq.ft):</strong> {formData.area}</div>
@@ -474,12 +433,12 @@ export default function VenueListingForm() {
                 </div>
                 <div><strong>Contact Number:</strong> {formData.contactNumber}</div>
                 <div><strong>Email:</strong> {formData.email}</div>
-                <div><strong>Company:</strong> {formData.company || 'N/A'}</div>
+                <div><strong>Owner Name:</strong> {formData.ownerName || 'N/A'}</div>
               </div>
             </CardContent>
           </Card>
           <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(6)} type="button">
+            <Button variant="outline" onClick={() => setStep(5)} type="button">
               Back
             </Button>
             <Button type="submit" disabled={submitting} className="px-8">

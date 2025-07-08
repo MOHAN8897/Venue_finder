@@ -4,9 +4,11 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
 import VenueOwnerProtectedRoute from './components/VenueOwnerProtectedRoute';
 import LoadingSpinner from './components/LoadingSpinner';
+import { useAuth } from './hooks/useAuth';
+import TooManyTabsOverlay from './components/TooManyTabsOverlay';
+import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
 
 // Pages (lazy loaded)
 const Home = lazy(() => import('./pages/Home'));
@@ -28,8 +30,6 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const VerifyOtp = lazy(() => import('./pages/VerifyOtp'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const ManageVenues = lazy(() => import('./pages/ManageVenues'));
-const SuperAdminLogin = lazy(() => import('./pages/SuperAdminLogin'));
-const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'));
 const BookingManager = lazy(() => import('./pages/BookingManager'));
 const OfferManagerPage = lazy(() => import('./pages/OfferManagerPage'));
@@ -37,6 +37,9 @@ const CompliancePage = lazy(() => import('./pages/CompliancePage'));
 const BookingSettingsPage = lazy(() => import('./pages/BookingSettingsPage'));
 const RevenuePage = lazy(() => import('./pages/RevenuePage'));
 const MessagingPage = lazy(() => import('./pages/MessagingPage'));
+const SuperAdminDashboardIndex = lazy(() => import('./pages/super-admin/Index'));
+const SuperAdminNotFound = lazy(() => import('./pages/super-admin/NotFound'));
+const SuperAdminLogin = lazy(() => import('./pages/super-admin/Login'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -50,21 +53,37 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 function App() {
+  // Use useAuth to get isActiveTab
+  // We need to wrap the router in a component that can access context
   return (
     <Router>
       <AuthProvider>
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            {/* Super Admin Standalone Routes (no main layout) */}
-            <Route path="/super-admin/login" element={<SuperAdminLogin />} />
-            <Route 
-              path="/super-admin/dashboard" 
-              element={
-                <SuperAdminProtectedRoute>
-                  <SuperAdminDashboard />
-                </SuperAdminProtectedRoute>
-              } 
-            />
+        <AppWithTabOverlay />
+      </AuthProvider>
+    </Router>
+  );
+}
+
+const AppWithTabOverlay: React.FC = () => {
+  const { isActiveTab, handoffPending, user } = useAuth();
+  // Only show TooManyTabsOverlay for normal users and venue owners
+  const showTabOverlay =
+    user && (user.role === 'user' || user.role === 'venue_owner') && !isActiveTab;
+  if (showTabOverlay) {
+    return <TooManyTabsOverlay handoffPending={handoffPending} />;
+  }
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        {/* Super Admin Dashboard: All /super-admin/* routes */}
+        <Route path="/super-admin/*" element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminDashboardIndex />
+          </SuperAdminProtectedRoute>
+        } />
+        {/* Optionally, handle /super-admin/404 or similar */}
+        <Route path="/super-admin/404" element={<SuperAdminNotFound />} />
+        <Route path="/super-admin/login" element={<SuperAdminLogin />} />
 
             {/* Public Routes with Main Layout */}
             <Route path="/" element={<MainLayout><Home /></MainLayout>} />
@@ -156,11 +175,9 @@ function App() {
 
             {/* 404 Route with Main Layout */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
-          </Routes>
-        </Suspense>
-      </AuthProvider>
-    </Router>
+      </Routes>
+    </Suspense>
   );
-}
+};
 
 export default App;

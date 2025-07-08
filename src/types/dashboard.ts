@@ -1,0 +1,30 @@
+export interface Venue {
+  id: string;
+  venue_name: string;
+  venue_type: string;
+  address: string;
+  website: string;
+  user_id: string;
+  owner_id: string;
+  submitted_by: string;
+  created_at: string;
+  updated_at: string;
+  description: string;
+  capacity: number;
+  area: number;
+  amenities: string[];
+  photos: string[];
+  videos: string[];
+  price_per_hour: string;
+  price_per_day: string;
+  availability: string[];
+  contact_number: string;
+  email: string;
+  owner_name: string | null;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  admin_feedback: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  admin_notes: string | null;
+  rejection_reason: string | null;
+} 
