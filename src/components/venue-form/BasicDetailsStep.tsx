@@ -12,16 +12,8 @@ interface BasicDetailsStepProps {
 }
 
 const VENUE_TYPES = [
-  'Event Hall',
-  'Conference Room',
-  'Wedding Venue',
-  'Restaurant',
-  'Hotel',
-  'Outdoor Space',
-  'Theater',
-  'Gallery',
-  'Sports Venue',
-  'Community Center'
+  'Farmhouse',
+  'Sports Venue'
 ];
 
 export default function BasicDetailsStep({ formData, updateFormData }: BasicDetailsStepProps) {

@@ -57,6 +57,9 @@ const SignIn: React.FC = () => {
     setError('');
     setSuccess(false);
     setLoading(true);
+    // Clear any admin session before normal user login
+    localStorage.clear();
+    sessionStorage.clear();
     if (isSignUp) {
       if (!email || !phone || !password) {
         setError('Please fill in all required fields.');
@@ -75,6 +78,7 @@ const SignIn: React.FC = () => {
       } else {
         setSuccess(true);
         setPassword('');
+        localStorage.setItem('userRole', 'user');
       }
       return;
     }
@@ -90,6 +94,7 @@ const SignIn: React.FC = () => {
       setError(signInError);
     } else {
       setSuccess(true);
+      localStorage.setItem('userRole', 'user');
       // Don't navigate immediately - let the useEffect handle navigation when user state is set
     }
   };

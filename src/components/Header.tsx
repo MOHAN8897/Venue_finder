@@ -97,9 +97,11 @@ const Header: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      setIsProfileMenuOpen(false);
-      navigate('/');
+      if (!window.location.pathname.includes('signin')) {
+        await signOut();
+        setIsProfileMenuOpen(false);
+        navigate('/');
+      }
     } catch {
       setIsProfileMenuOpen(false);
       navigate('/');
@@ -205,8 +207,8 @@ const Header: React.FC = () => {
                       </div>
                       
                       <div className="py-2">
-                        {/* Only show these for owners (users with role === 'owner') */}
-                        {user && user.role === 'owner' ? (
+                        {/* Only show these for website owners (role === 'super_admin') */}
+                        {user && user.role === 'super_admin' ? (
                           <>
                             <Link
                               to="/list-venue"
@@ -217,12 +219,12 @@ const Header: React.FC = () => {
                               <span className="font-medium">List Your Venue</span>
                             </Link>
                             <Link
-                              to="/manage-venues"
+                              to="/manageyourpage-dashboard"
                               className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
                               onClick={() => setIsProfileMenuOpen(false)}
                             >
-                              <Building2 className="h-5 w-5 text-green-500" />
-                              <span className="font-medium">Manage Venues</span>
+                              <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                              <span className="font-medium">Manage Your Venue</span>
                             </Link>
                             <Link
                               to="/settings"
@@ -245,12 +247,12 @@ const Header: React.FC = () => {
                             </Link>
                             {hasApprovedVenue && (
                               <Link
-                                to="/manage-venues"
+                                to="/manageyourpage-dashboard"
                                 className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors"
                                 onClick={() => setIsProfileMenuOpen(false)}
                               >
-                                <Building2 className="h-5 w-5 text-green-500" />
-                                <span className="font-medium">Manage Venues</span>
+                                <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                                <span className="font-medium">Manage Your Venue</span>
                               </Link>
                             )}
                             <Link
@@ -371,8 +373,8 @@ const Header: React.FC = () => {
                       </div>
                     </div>
                     
-                    {/* Only show these for owners (users with role === 'owner') */}
-                    {user && user.role === 'owner' ? (
+                    {/* Only show these for website owners (role === 'super_admin') */}
+                    {user && user.role === 'super_admin' ? (
                       <>
                         <Link
                           to="/list-venue"
@@ -383,12 +385,12 @@ const Header: React.FC = () => {
                           <span className="font-medium">List Your Venue</span>
                         </Link>
                         <Link
-                          to="/manage-venues"
+                          to="/manageyourpage-dashboard"
                           className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
                           onClick={() => setIsMenuOpen(false)}
                         >
-                          <Building2 className="h-5 w-5 text-green-500" />
-                          <span className="font-medium">Manage Venues</span>
+                          <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                          <span className="font-medium">Manage Your Venue</span>
                         </Link>
                         <Link
                           to="/settings"
@@ -411,12 +413,12 @@ const Header: React.FC = () => {
                         </Link>
                         {hasApprovedVenue && (
                           <Link
-                            to="/manage-venues"
+                            to="/manageyourpage-dashboard"
                             className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 flex items-center space-x-3 transition-colors rounded-lg"
                             onClick={() => setIsMenuOpen(false)}
                           >
-                            <Building2 className="h-5 w-5 text-green-500" />
-                            <span className="font-medium">Manage Venues</span>
+                            <LayoutDashboard className="h-5 w-5 text-blue-500" />
+                            <span className="font-medium">Manage Your Venue</span>
                           </Link>
                         )}
                         <Link

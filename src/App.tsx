@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { AuthProvider } from './context/AuthContext';
@@ -7,8 +7,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 import VenueOwnerProtectedRoute from './components/VenueOwnerProtectedRoute';
 import LoadingSpinner from './components/LoadingSpinner';
 import { useAuth } from './hooks/useAuth';
-import TooManyTabsOverlay from './components/TooManyTabsOverlay';
 import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TooltipProvider } from '@/components/cricket-dashboard/tooltip';
+import { Toaster as DashboardToaster } from '@/components/cricket-dashboard/toaster';
+import { Toaster as Sonner } from '@/components/cricket-dashboard/sonner';
 
 // Pages (lazy loaded)
 const Home = lazy(() => import('./pages/Home'));
@@ -29,8 +32,6 @@ const UserSettings = lazy(() => import('./pages/UserSettings'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const VerifyOtp = lazy(() => import('./pages/VerifyOtp'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const ManageVenues = lazy(() => import('./pages/ManageVenues'));
-const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'));
 const BookingManager = lazy(() => import('./pages/BookingManager'));
 const OfferManagerPage = lazy(() => import('./pages/OfferManagerPage'));
 const CompliancePage = lazy(() => import('./pages/CompliancePage'));
@@ -40,6 +41,11 @@ const MessagingPage = lazy(() => import('./pages/MessagingPage'));
 const SuperAdminDashboardIndex = lazy(() => import('./pages/super-admin/Index'));
 const SuperAdminNotFound = lazy(() => import('./pages/super-admin/NotFound'));
 const SuperAdminLogin = lazy(() => import('./pages/super-admin/Login'));
+const ManageYourPageDashboard = lazy(() => import('./pages/cricket-dashboard/Index'));
+const ManageYourPageBoxes = lazy(() => import('./pages/cricket-dashboard/BoxesPage'));
+const ManageYourPageCalendar = lazy(() => import('./pages/cricket-dashboard/CalendarPage'));
+const ManageYourPageAnalytics = lazy(() => import('./pages/cricket-dashboard/AnalyticsPage'));
+const ManageYourPageSettings = lazy(() => import('./pages/cricket-dashboard/SettingsPage'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -52,25 +58,41 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </div>
 );
 
+const queryClient = new QueryClient();
+
 function App() {
-  // Use useAuth to get isActiveTab
-  // We need to wrap the router in a component that can access context
   return (
-    <Router>
-      <AuthProvider>
-        <AppWithTabOverlay />
-      </AuthProvider>
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <DashboardToaster />
+        <Sonner />
+        <Router>
+          <AuthProvider>
+            <AppWithTabOverlay />
+          </AuthProvider>
+        </Router>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 
 const AppWithTabOverlay: React.FC = () => {
-  const { isActiveTab, handoffPending, user } = useAuth();
-  // Only show TooManyTabsOverlay for normal users and venue owners
-  const showTabOverlay =
-    user && (user.role === 'user' || user.role === 'venue_owner') && !isActiveTab;
-  if (showTabOverlay) {
-    return <TooManyTabsOverlay handoffPending={handoffPending} />;
+  const location = useLocation();
+  const userRole = localStorage.getItem('userRole');
+  // Prevent session mixing: if on /super-admin/* and not admin, redirect to login
+  if (location.pathname.startsWith('/super-admin')) {
+    if (userRole !== 'administrator') {
+      localStorage.clear();
+      sessionStorage.clear();
+      if (location.pathname !== '/super-admin/login') {
+        return <Navigate to="/super-admin/login" replace />;
+      }
+    }
+  } else {
+    // If admin is logged in and tries to access user routes, redirect to super-admin dashboard
+    if (userRole === 'administrator') {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
   }
   return (
     <Suspense fallback={<LoadingSpinner />}>
@@ -139,28 +161,6 @@ const AppWithTabOverlay: React.FC = () => {
               } 
             />
 
-            {/* Owner Routes with Main Layout */}
-            <Route 
-              path="/owner/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <MainLayout><OwnerDashboard /></MainLayout>
-                </ProtectedRoute>
-              } 
-            />
-
-            {/* Manage Venues Route with Main Layout */}
-            <Route 
-              path="/manage-venues" 
-              element={
-                <ProtectedRoute>
-                  <VenueOwnerProtectedRoute>
-                    <MainLayout><ManageVenues /></MainLayout>
-                  </VenueOwnerProtectedRoute>
-                </ProtectedRoute>
-              } 
-            />
-
             {/* Edit Venue Route with Main Layout */}
             <Route 
               path="/edit-venue/:venueId" 
@@ -172,6 +172,17 @@ const AppWithTabOverlay: React.FC = () => {
                 </ProtectedRoute>
               } 
             />
+
+            {/* Manage Your Venue Dashboard Routes (unique) */}
+            <Route path="/manageyourpage-dashboard" element={<MainLayout><ManageYourPageDashboard /></MainLayout>} />
+            <Route path="/manageyourpage-boxes" element={<MainLayout><ManageYourPageBoxes /></MainLayout>} />
+            <Route path="/manageyourpage-calendar" element={<MainLayout><ManageYourPageCalendar /></MainLayout>} />
+            <Route path="/manageyourpage-analytics" element={<MainLayout><ManageYourPageAnalytics /></MainLayout>} />
+            <Route path="/manageyourpage-settings" element={<MainLayout><ManageYourPageSettings /></MainLayout>} />
+
+            {/* Redirect old cricket-dashboard routes to new manageyourpage-dashboard */}
+            <Route path="/cricket-dashboard" element={<Navigate to="/manageyourpage-dashboard" replace />} />
+            <Route path="/cricket-dashboard/*" element={<Navigate to="/manageyourpage-dashboard" replace />} />
 
             {/* 404 Route with Main Layout */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />

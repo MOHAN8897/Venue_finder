@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,24 +8,17 @@ import { Building, Tag, MapPin, Map, Globe, Check } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import DescriptionStep from './venue-form/DescriptionStep';
-import LocationStep from './venue-form/LocationStep';
 import SpecificationsStep from './venue-form/SpecificationsStep';
 import MediaStep from './venue-form/MediaStep';
 import PricingStep from './venue-form/PricingStep';
 import ContactStep from './venue-form/ContactStep';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { VenueSubmissionService } from '../lib/venueSubmissionService';
 
 const VENUE_TYPES = [
-  'Event Hall',
-  'Conference Room',
-  'Wedding Venue',
-  'Restaurant',
-  'Hotel',
-  'Outdoor Space',
-  'Theater',
-  'Gallery',
-  'Sports Venue',
-  'Community Center'
+  'Farmhouse',
+  'Sports Venue'
 ];
 
 export interface VenueFormData {
@@ -72,6 +65,54 @@ export default function VenueListingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [venueStatus, setVenueStatus] = useState<'pending' | 'approved' | 'rejected' | 'none' | 'unknown'>('unknown');
+  const [statusChecked, setStatusChecked] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+
+  useEffect(() => {
+    async function checkStatus() {
+      if (!user) return;
+      const status = await VenueSubmissionService.getUserVenueSubmissionStatus();
+      setVenueStatus(status as any);
+      setStatusChecked(true);
+      if (status === 'pending' || status === 'approved' || status === 'rejected') {
+        setShowDialog(true);
+      }
+    }
+    checkStatus();
+  }, [user]);
+
+  // Dialog content based on status
+  const getDialogContent = () => {
+    switch (venueStatus) {
+      case 'pending':
+        return {
+          title: 'Venue Submission Under Review',
+          description: 'Your venue submission is currently under review. You will be notified once it is approved or rejected. You cannot submit another venue until this is resolved.',
+          allowForm: false
+        };
+      case 'approved':
+        return {
+          title: 'Venue Approved',
+          description: 'Congratulations! Your venue has been approved. You can now manage your venue from the dashboard. Further submissions are not allowed.',
+          allowForm: false
+        };
+      case 'rejected':
+        return {
+          title: 'Venue Submission Rejected',
+          description: 'Your previous venue submission was rejected. You may update and resubmit your venue details.',
+          allowForm: true
+        };
+      default:
+        return { title: '', description: '', allowForm: true };
+    }
+  };
+  const dialogContent = getDialogContent();
+
+  // Block form if not allowed
+  if (!statusChecked) {
+    return <div className="p-8 text-center text-muted-foreground">Checking your venue submission status...</div>;
+  }
 
   // Move handleSubmit above steps array to avoid ReferenceError
   const handleSubmit = async (e: React.FormEvent) => {
@@ -479,6 +520,17 @@ export default function VenueListingForm() {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={showDialog && (venueStatus === 'pending' || venueStatus === 'approved' || venueStatus === 'rejected')} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogContent.title}</DialogTitle>
+            <DialogDescription>{dialogContent.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowDialog(false)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

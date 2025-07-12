@@ -28,9 +28,9 @@ const VenueOwnerProtectedRoute: React.FC<VenueOwnerProtectedRouteProps> = ({ chi
       }
 
     console.log('[VenueOwnerProtectedRoute] Checking user role:', user.role);
-    // Check if the user's role is 'venue_owner' (partner) or 'owner' (website owner)
-    if (user.role === 'venue_owner' || user.role === 'owner') {
-      console.log('[VenueOwnerProtectedRoute] User is authorized (venue_owner or owner).');
+    // Check if the user's role is 'venue_owner' (venue owner only)
+    if (user.role === 'venue_owner') {
+      console.log('[VenueOwnerProtectedRoute] User is authorized (venue_owner).');
       setIsAuthorizedOwner(true);
     } else {
       console.log('[VenueOwnerProtectedRoute] User is NOT authorized, role:', user.role, 'redirecting to list-venue.');
@@ -56,7 +56,8 @@ const VenueOwnerProtectedRoute: React.FC<VenueOwnerProtectedRouteProps> = ({ chi
     return null; // Should have redirected via navigate() if not authorized
   }
 
-  if (user && user.role === 'owner') {
+  // Remove or update this logic if it should only apply to website owner
+  if (user && user.role === 'super_admin') {
     // Block owner from accessing venue owner routes
     return <Navigate to="/super-admin/dashboard" replace />;
   }

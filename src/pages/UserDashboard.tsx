@@ -93,9 +93,10 @@ const UserDashboard: React.FC = () => {
       navigate('/signin');
       return;
     }
-    if (user && user.role === 'owner') {
+    // Only show owner features for website owner
+    if (user && user.role === 'super_admin') {
       // Block owner from accessing user dashboard
-      return <Navigate to="/super-admin/dashboard" replace />;
+      window.location.replace('/owner-dashboard');
     }
     if (!isConnected) {
       setError('Database connection failed. Please check your connection and try again.');

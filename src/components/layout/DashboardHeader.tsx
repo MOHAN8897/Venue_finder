@@ -28,8 +28,14 @@ export function DashboardHeader() {
     // Log signout event (optional: implement in your DB as needed)
     // await supabase.from('admin_logs').insert({ event: 'signout', admin_email: '...' });
     localStorage.removeItem('super_admin_session');
-    await supabase.auth.signOut();
-    navigate('/super-admin/login', { replace: true });
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('adminEmail');
+    localStorage.removeItem('adminRole');
+    sessionStorage.clear();
+    if (!window.location.pathname.includes('login')) {
+      await supabase.auth.signOut();
+      navigate('/super-admin/login', { replace: true });
+    }
   };
   return (
     <header className="border-b bg-dashboard-nav px-6 py-3">

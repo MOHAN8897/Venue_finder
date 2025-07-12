@@ -310,5 +310,77 @@ All code changes, edits, features, and bug fixes are documented here with timest
 
 ## [2024-08-03TIST] Updated VenueListingForm to upload images to Supabase Storage before saving venue, using VenueSubmissionService.uploadFiles. Now, submitted venues will have their images stored in the 'venue-images' bucket and the database will store the public URLs.
 
-## ...
-_Add new entries for each major change or bugfix._ 
+## 2024-07-01  - Fix: Single-Tab Overlay Logic
+
+**Changes Made:**
+- Added cleanup for ACTIVE_TAB_KEY and ACTIVE_TAB_TIMESTAMP_KEY on tab close/unload in AuthContext.tsx.
+- Implemented a timeout check for ACTIVE_TAB_TIMESTAMP_KEY (10s heartbeat) to prevent stale overlays when only one tab is open.
+- Overlay now only appears if another tab is truly active for the same user session/role.
+
+**Files Modified:**
+- `src/context/AuthContext.tsx`
+
+**Technical Details:**
+- On tab close/unload, if this tab is the active one, the active tab keys are removed from localStorage.
+- On mount/focus/visibility, if the active tab timestamp is stale, the current tab claims active status.
+- Prevents the "Switching Tabs..." overlay from showing when only one tab is open. 
+
+## [2024-08-02] Frontend Role Naming and Logic Updates
+- Updated all frontend role checks and assignments to use new role names: 'user', 'venue_owner', 'administrator', 'owner', 'super_admin'.
+- Replaced all 'admin' checks with 'administrator'.
+- Clarified logic and comments for 'owner' (website owner) and 'venue_owner' (venue owner).
+- Fixed linter error in UserDashboard.tsx for useEffect return value.
+
+## [2024-08-02] Role Naming and Venue Owner Promotion Updates
+- Renamed 'admin' to 'administrator' in user_role enum for clarity.
+- Updated approve_venue function to promote users to 'venue_owner' upon first venue approval (instead of 'owner' or 'admin').
+- Clarified role naming conventions: 'user', 'venue_owner', 'administrator', 'owner', 'super_admin'.
+- Updated documentation in sql_commands.md. 
+
+## [2024-08-02] Frontend Update: Merge 'owner' and 'super_admin' Roles
+- Removed all references to 'owner' in frontend role checks and replaced with 'super_admin'.
+- Updated comments and UI logic to clarify 'super_admin' is now the website owner.
+- Documented all changes in code change log. 
+
+## [2024-08-01] Session Persistence and Expiry Fixes
+
+- Ensured Supabase client is initialized with persistSession: true and autoRefreshToken: true for all user roles in src/lib/supabase.ts.
+- Updated periodic session validity check in AuthContext to add a grace period retry and avoid unnecessary sign-outs or redirects if already on the sign-in page.
+- Updated all signOut and forced logout logic in AuthContext, Header, DashboardHeader, and ResetPassword to avoid redundant redirects or sign-outs if already on the sign-in page.
+- Added comments to supabase.ts for future maintainers.
+- These changes resolve issues where user and super admin sessions were expiring prematurely or being logged out unnecessarily after inactivity.
+
+Context: See conversation summary and project rules for details. All changes tested and verified. 
+
+## [2024-08-02] All Approved/Rejected Venues Set to Cricket (Sports Venue)
+
+- Updated all venues with approval_status 'approved' or 'rejected' to have venue_type = 'Sports Venue' (closest enum for cricket venues).
+- SQL command executed:
+  ```sql
+  UPDATE public.venues
+  SET venue_type = 'Sports Venue'
+  WHERE approval_status IN ('approved', 'rejected');
+  ```
+- Context: This ensures all previously approved or rejected venues are now classified as cricket venues for the new dashboard integration.
+- See also: database/sql_commands.md for full details.
+- Timestamp: 2024-08-02 
+
+## [2024-06-08] Updated Venue Dashboard Navigation and Redirects
+- All navigation links previously pointing to `/cricket-dashboard` now point to `/manageyourpage-dashboard` for uniqueness and consistency.
+- Added redirect routes in `App.tsx` so that `/cricket-dashboard` and `/cricket-dashboard/*` automatically forward to `/manageyourpage-dashboard`.
+- This prevents 404 errors for users with old links and ensures all navigation is routed to the correct dashboard. 
+
+## [2024-06-08] Removed Demo Data from Manage Venue Dashboard Settings
+- All demo/default values in the settings fields (profile, venue, notifications, business) have been cleared.
+- Initial values are now empty or false, with no prefilled fake data.
+- This ensures a clean state for new users and prevents confusion. 
+
+## [2024-06-08] Fixed Vertical Line Overlapping Footer
+- Removed `border-r` class from the AppSidebar component in `src/components/cricket-dashboard/AppSidebar.tsx`.
+- The right border on the sidebar was extending the full height and visually overlapping with the footer.
+- This ensures the sidebar border does not extend beyond the dashboard content area. 
+
+## [2024-06-08] Fixed Welcome Section Background and Text Colors
+- Changed welcome section background from `bg-primary` to `bg-green-600` for explicit green background.
+- Updated text colors to `text-white` and `text-white/90` to ensure proper white text contrast against the green background.
+- This ensures the welcome message is clearly visible with white text on green background as requested. 

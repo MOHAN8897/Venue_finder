@@ -191,3 +191,32 @@ _Add new tasks as the project evolves._
 - Result: Super admin panel is now secure and fully functional for authorized users only. 
 
 - 2024-08-03TIST: Venue image upload on submission is now fixed. Images are uploaded to Supabase Storage and URLs are saved in the database. 
+
+## [2024-08-02] Backend Role Naming and Promotion Logic Update
+- Completed migration to rename 'admin' to 'administrator' in user_role enum.
+- Updated approve_venue function to promote users to 'venue_owner' upon venue approval.
+- Documented all changes in sql_commands.md and code change log. 
+
+## [2024-08-02] Frontend Role Naming and Logic Update
+- Updated all frontend role checks and assignments to use new role names: 'user', 'venue_owner', 'administrator', 'owner', 'super_admin'.
+- Replaced all 'admin' checks with 'administrator'.
+- Clarified logic and comments for 'owner' (website owner) and 'venue_owner' (venue owner).
+- Fixed linter error in UserDashboard.tsx for useEffect return value. 
+
+## [2024-08-02] Merge 'owner' and 'super_admin' Roles
+- Updated all 'owner' roles in profiles to 'super_admin'.
+- Removed 'owner' from user_role enum by recreating the type.
+- Dropped all dependent RLS policies and functions before type change.
+- Documented all changes in sql_commands.md and code change log. 
+
+## [2024-08-02] Frontend Update: Merge 'owner' and 'super_admin' Roles
+- Removed all references to 'owner' in frontend role checks and replaced with 'super_admin'.
+- Updated comments and UI logic to clarify 'super_admin' is now the website owner.
+- Documented all changes in code change log. 
+
+## [2024-08-02] Task Complete: All Approved/Rejected Venues Set to Cricket (Sports Venue)
+
+- All venues with approval_status 'approved' or 'rejected' have been updated to venue_type = 'Sports Venue' (used for cricket venues).
+- This aligns the database with the new dashboard and business requirements.
+- See CODE_CHANGE_LOG.md and database/sql_commands.md for details.
+- Timestamp: 2024-08-02 

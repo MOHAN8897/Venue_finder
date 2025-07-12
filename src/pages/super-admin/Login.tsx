@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { adminLogin } from '../../lib/sessionService';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ const SuperAdminLogin: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signInWithEmail, refreshUserProfile, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,37 +19,19 @@ const SuperAdminLogin: React.FC = () => {
     setError('');
     setLoading(true);
     // Clear any normal user session before super admin login
-    localStorage.removeItem('venueFinder_user');
-    sessionStorage.removeItem('venueFinder_session');
-    const { error: signInError } = await signInWithEmail(email, password);
-    if (signInError) {
-      setError(signInError);
+    localStorage.clear();
+    sessionStorage.clear();
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const { success, error: loginError, role } = await adminLogin(trimmedEmail, trimmedPassword);
+    if (!success) {
+      setError(loginError || 'Login failed.');
       setLoading(false);
       return;
     }
-    // Fetch the user profile directly from Supabase to check the role
-    try {
-      const { data: { user: supaUser } } = await import('../../lib/supabase').then(m => m.supabase.auth.getUser());
-      if (!supaUser) throw new Error('No user session');
-      const { data: profile, error: profileError } = await import('../../lib/supabase').then(m => m.supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', supaUser.id)
-        .single()
-      );
-      if (profileError || !profile) throw new Error('Could not fetch user profile');
-      if (profile.role === 'owner') {
-        localStorage.setItem('super_admin_session', 'true');
-        setLoading(false);
-        navigate('/super-admin/dashboard', { replace: true });
-      } else {
-        setError('You are not authorized as the website owner.');
-        setLoading(false);
-      }
-    } catch (err) {
-      setError('Could not verify user role.');
-      setLoading(false);
-    }
+    localStorage.setItem('super_admin_session', 'true');
+    setLoading(false);
+    navigate('/super-admin/dashboard', { replace: true });
   };
 
   return (

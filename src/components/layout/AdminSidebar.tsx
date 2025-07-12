@@ -24,50 +24,50 @@ import {
 
 const navigationItems = [
   {
-    title: 'Overview',
-    url: '/super-admin/',
+    title: 'Superadmin Overview',
+    url: '/super-admin/superadmin-overview',
     icon: Info,
     group: 'Main'
   },
   {
-    title: 'Venues',
-    url: '/super-admin/venues',
+    title: 'Superadmin Venues',
+    url: '/super-admin/superadmin-venues',
     icon: Calendar,
     group: 'Management'
   },
   {
-    title: 'Users',
-    url: '/super-admin/users',
+    title: 'Superadmin Users',
+    url: '/super-admin/superadmin-users',
     icon: Users,
     group: 'Management'
   },
   {
-    title: 'Payments',
-    url: '/super-admin/payments',
+    title: 'Superadmin Payments',
+    url: '/super-admin/superadmin-payments',
     icon: Check,
     group: 'Finance'
   },
   {
-    title: 'Reports',
-    url: '/super-admin/reports',
+    title: 'Superadmin Reports',
+    url: '/super-admin/superadmin-reports',
     icon: Eye,
     group: 'Finance'
   },
   {
-    title: 'Admins',
-    url: '/super-admin/admins',
+    title: 'Superadmin Admins',
+    url: '/super-admin/superadmin-admins',
     icon: User,
     group: 'System'
   },
   {
-    title: 'Activity',
-    url: '/super-admin/activity',
+    title: 'Superadmin Activity',
+    url: '/super-admin/superadmin-activity',
     icon: Eye,
     group: 'System'
   },
   {
-    title: 'Settings',
-    url: '/super-admin/settings',
+    title: 'Superadmin Settings',
+    url: '/super-admin/superadmin-settings',
     icon: Settings,
     group: 'System'
   }

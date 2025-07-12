@@ -50,9 +50,11 @@ const ResetPassword = () => {
       
       setSuccess(true);
       setTimeout(() => {
-        // Sign out to force re-login with the new password
-        supabase.auth.signOut(); 
-        navigate('/signin');
+        // Only sign out and redirect if not already on sign-in page
+        if (!window.location.pathname.includes('signin')) {
+          supabase.auth.signOut();
+          navigate('/signin');
+        }
       }, 3000);
 
     } catch (err) {

@@ -1896,6 +1896,69 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ```
 
+### 9. Update Role Naming and Promotion Logic (2024-08-02)
+**Purpose:** Standardize role names and ensure correct role promotion on venue approval.
+
+```sql
+-- 1. Rename 'admin' to 'administrator' in user_role enum
+ALTER TYPE user_role RENAME VALUE 'admin' TO 'administrator';
+
+-- 2. Update approve_venue function to promote to 'venue_owner' instead of 'owner' or 'admin'
+CREATE OR REPLACE FUNCTION public.approve_venue(
+    venue_uuid uuid,
+    admin_notes text DEFAULT NULL
+)
+RETURNS jsonb AS $$
+DECLARE
+    venue_record public.venues;
+    user_profile public.profiles;
+    result jsonb;
+BEGIN
+    -- Get venue details
+    SELECT * INTO venue_record FROM public.venues WHERE id = venue_uuid;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Venue not found');
+    END IF;
+    -- Get user profile
+    SELECT * INTO user_profile FROM public.profiles WHERE user_id = venue_record.submitted_by;
+    -- Update venue status
+    UPDATE public.venues 
+    SET approval_status = 'approved',
+        approval_date = now(),
+        approved_by = auth.uid(),
+        is_approved = true,
+        is_active = true
+    WHERE id = venue_uuid;
+    -- Update user role to venue_owner if not already
+    IF user_profile.role != 'venue_owner' THEN
+        UPDATE public.profiles 
+        SET role = 'venue_owner',
+            owner_verified = true,
+            owner_verification_date = now()
+        WHERE user_id = venue_record.submitted_by;
+    END IF;
+    -- Log the approval
+    INSERT INTO public.venue_approval_logs (
+        venue_id, admin_id, action, admin_notes
+    ) VALUES (
+        venue_uuid, auth.uid(), 'approved', admin_notes
+    );
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Venue approved successfully',
+        'venue_id', venue_uuid
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Role Naming Conventions:**
+- `user`: Normal user
+- `venue_owner`: User who has at least one approved venue
+- `administrator`: Admin accounts (formerly `admin`)
+- `owner`: Website owner or super admin
+- `super_admin`: Highest privilege (if used)
+
 ## [2024-07-05] Add missing columns to public.venues for new venue listing form
 
 To support all fields collected by the new multi-step venue listing form, add the following columns to the venues table:
@@ -2024,45 +2087,130 @@ ADD COLUMN IF NOT EXISTS company text;
 
 ---
 
-# Single Active Tab Session Enforcement (Snapchat Web Style)
+## [2024-07-01 - Remove Single-Tab Session Enforcement
 
-## 1. Add `active_tab_id` to `profiles` Table
+**Changes Made:**
+- Dropped `active_tab_id` column from `profiles` table.
+- Dropped RLS policy "Only active tab can update profile" on `profiles`.
+- Dropped `tab_sessions` table (if it existed).
+
+**Reason:**
+- The app no longer enforces single active tab or tab-level session management. Only cross-tab logout is maintained for security. Logging in does not auto-login other tabs.
+
+**SQL:**
 ```sql
-ALTER TABLE profiles ADD COLUMN active_tab_id UUID DEFAULT NULL;
+ALTER TABLE profiles DROP COLUMN IF EXISTS active_tab_id;
+DROP POLICY IF EXISTS "Only active tab can update profile" ON profiles;
+DROP TABLE IF EXISTS tab_sessions;
 ```
 
-## 2. Enable RLS and Add Policy
-```sql
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+## [2024-07-01 - Added admin_users Table for Super Admin/Admin Isolation](2024-07-01 - Added admin_users Table for Super Admin/Admin Isolation)
 
-CREATE POLICY "Only active tab can update profile"
-ON profiles
-FOR UPDATE
-USING (
-  auth.uid() = user_id
-  AND active_tab_id::text = current_setting('request.headers.tab-id', true)
-);
-```
+**Changes Made:**
+- Created new table `admin_users` for Super Admins/Admins with custom email-password login.
+- Added RLS policy to allow access to self only.
 
-## 3. (Optional) Create `tab_sessions` Audit Table
+**SQL:**
 ```sql
-CREATE TABLE tab_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id),
-  tab_id UUID,
-  created_at TIMESTAMP DEFAULT now(),
-  is_active BOOLEAN DEFAULT true
+CREATE TABLE public.admin_users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text UNIQUE NOT NULL,
+  password text NOT NULL,
+  role text NOT NULL CHECK (role IN ('super_admin', 'admin')),
+  created_at timestamp with time zone DEFAULT now()
 );
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow access to self only"
+  ON public.admin_users
+  FOR SELECT USING (auth.uid() = id);
 ```
 
 ---
 
-**Purpose:**
-- Enforces that only the active tab can update the user profile.
-- Tracks tab-level login/logout for audit and analytics.
-- Ensures secure, single-tab session enforcement at the database level.
+## [2024-08-02] Deprecation and Removal of super_admin_credentials Table and Functions
 
-**Logged:**
-- [ ] Migration applied to Supabase
-- [ ] RLS and policy tested
-- [ ] tab_sessions table used for audit (optional)
+**Reason:**
+- The new `admin_users` table is now the source of truth for Super Admin/Admin authentication and session isolation.
+- The legacy `super_admin_credentials` table and its functions are no longer needed and have been removed for security and clarity.
+
+**SQL Executed:**
+```sql
+-- Drop legacy super admin credentials table and related functions
+DROP TABLE IF EXISTS public.super_admin_credentials CASCADE;
+DROP FUNCTION IF EXISTS public.authenticate_super_admin CASCADE;
+DROP FUNCTION IF EXISTS public.create_super_admin CASCADE;
+```
+
+**Timestamp:** 2024-08-02
+**Applied via Supabase MCP.**
+
+---
+
+## [2024-08-02] Add Super Admin (sai@gmail.com) and RLS for Admin Management
+
+**Reason:**
+- Inserted initial super admin credentials for `sai@gmail.com`.
+- Updated RLS policies to allow super_admins to add/update admins and access all admin records, while all admins can access their own records.
+
+**SQL Executed:**
+```sql
+-- Insert super admin
+INSERT INTO public.admin_users (email, password, role) VALUES ('sai@gmail.com', 'changeme123', 'super_admin');
+
+-- RLS policies for admin management
+DROP POLICY IF EXISTS "Super admins can insert admins" ON public.admin_users;
+CREATE POLICY "Super admins can insert admins" ON public.admin_users
+  FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM public.admin_users au WHERE au.email = 'sai@gmail.com' AND au.role = 'super_admin') AND role IN ('admin', 'super_admin'));
+
+DROP POLICY IF EXISTS "Super admins can update admins" ON public.admin_users;
+CREATE POLICY "Super admins can update admins" ON public.admin_users
+  FOR UPDATE
+  WITH CHECK (EXISTS (SELECT 1 FROM public.admin_users au WHERE au.email = 'sai@gmail.com' AND au.role = 'super_admin') AND role IN ('admin', 'super_admin'));
+
+DROP POLICY IF EXISTS "Admins can access self" ON public.admin_users;
+CREATE POLICY "Admins can access self" ON public.admin_users
+  FOR SELECT
+  USING (auth.uid() = id OR EXISTS (SELECT 1 FROM public.admin_users au WHERE au.email = 'sai@gmail.com' AND au.role = 'super_admin'));
+```
+
+**Timestamp:** 2024-08-02
+**Applied via Supabase MCP.**
+
+### 10. Merge 'owner' and 'super_admin' Roles (2024-08-02)
+**Purpose:** Unify the highest privilege roles and simplify role management.
+
+```sql
+-- 1. Update all 'owner' roles in profiles to 'super_admin'
+UPDATE public.profiles SET role = 'super_admin' WHERE role = 'owner';
+
+-- 2. Remove 'owner' from user_role enum by recreating the type
+-- (Dropped all dependent policies and functions before this step)
+CREATE TYPE user_role_new AS ENUM ('user', 'venue_owner', 'administrator', 'super_admin');
+ALTER TABLE public.profiles ALTER COLUMN role TYPE user_role_new USING role::text::user_role_new;
+DROP TYPE user_role;
+ALTER TYPE user_role_new RENAME TO user_role;
+ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT 'user';
+
+-- 3. Recreate any necessary policies/functions after type change.
+```
+
+- All RLS policies and functions referencing 'owner' or the old enum were dropped and should be recreated as needed.
+- 'super_admin' now represents both the website owner and super admin roles.
+
+# [2024-08-02] Mark All Approved/Rejected Venues as Cricket Venues (Sports Venue)
+
+**Purpose:**
+To ensure all previously approved and rejected venues are now categorized as cricket venues (using the closest available enum: 'Sports Venue').
+
+**SQL Command Executed:**
+```sql
+UPDATE public.venues
+SET venue_type = 'Sports Venue'
+WHERE approval_status IN ('approved', 'rejected');
+```
+
+**Result:**
+All venues with approval_status 'approved' or 'rejected' now have venue_type = 'Sports Venue'.
+
+**Timestamp:** 2024-08-02

@@ -1,31 +1,31 @@
 
 import { Routes, Route } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { OverviewPage } from '@/components/dashboard/OverviewPage';
-import { VenuesPage } from '@/components/dashboard/VenuesPage';
-import { UsersPage } from '@/components/dashboard/UsersPage';
-import { AdminsPage } from '@/components/dashboard/AdminsPage';
-import { PaymentsPage } from '@/components/dashboard/PaymentsPage';
-import { ReportsPage } from '@/components/dashboard/ReportsPage';
-import { ActivityPage } from '@/components/dashboard/ActivityPage';
-import { SettingsPage } from '@/components/dashboard/SettingsPage';
+import { OverviewPage as SuperadminOverviewPage } from '@/components/dashboard/OverviewPage';
+import { VenuesPage as SuperadminVenuesPage } from '@/components/dashboard/VenuesPage';
+import { UsersPage as SuperadminUsersPage } from '@/components/dashboard/UsersPage';
+import { AdminsPage as SuperadminAdminsPage } from '@/components/dashboard/AdminsPage';
+import { PaymentsPage as SuperadminPaymentsPage } from '@/components/dashboard/PaymentsPage';
+import { ReportsPage as SuperadminReportsPage } from '@/components/dashboard/ReportsPage';
+import { ActivityPage as SuperadminActivityPage } from '@/components/dashboard/ActivityPage';
+import { SettingsPage as SuperadminSettingsPage } from '@/components/dashboard/SettingsPage';
 import NotFound from './NotFound';
 
 const Index = () => {
   return (
     <DashboardLayout>
       <Routes>
-        <Route index element={<OverviewPage />} />
-        <Route path="overview" element={<OverviewPage />} />
-        <Route path="dashboard" element={<OverviewPage />} />
-        <Route path="dashboard/*" element={<OverviewPage />} />
-        <Route path="venues" element={<VenuesPage />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="admins" element={<AdminsPage />} />
-        <Route path="payments" element={<PaymentsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="activity" element={<ActivityPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route index element={<SuperadminOverviewPage />} />
+        <Route path="superadmin-overview" element={<SuperadminOverviewPage />} />
+        <Route path="superadmin-dashboard" element={<SuperadminOverviewPage />} />
+        <Route path="superadmin-dashboard/*" element={<SuperadminOverviewPage />} />
+        <Route path="superadmin-venues" element={<SuperadminVenuesPage />} />
+        <Route path="superadmin-users" element={<SuperadminUsersPage />} />
+        <Route path="superadmin-admins" element={<SuperadminAdminsPage />} />
+        <Route path="superadmin-payments" element={<SuperadminPaymentsPage />} />
+        <Route path="superadmin-reports" element={<SuperadminReportsPage />} />
+        <Route path="superadmin-activity" element={<SuperadminActivityPage />} />
+        <Route path="superadmin-settings" element={<SuperadminSettingsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </DashboardLayout>

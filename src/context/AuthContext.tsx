@@ -26,7 +26,7 @@ export interface UserProfile {
   full_name?: string;
   avatar_url?: string;
   phone?: string;
-  role?: 'user' | 'venue_owner' | 'owner' | 'admin';
+  role?: 'user' | 'venue_owner' | 'administrator' | 'super_admin';
   date_of_birth?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
   address?: string;
@@ -55,8 +55,6 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
   refreshUserProfile: () => Promise<void>;
-  isActiveTab: boolean;
-  handoffPending: boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -72,128 +70,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loginInProgress, setLoginInProgress] = useState(false);
   const [version, setVersion] = useState(0); // Used to force re-render in consumers
 
-  // Use sessionStorage for tabId, generate if not present, and scope by user role
-  const userRoleKey = user?.role || 'guest';
-  let tabId = sessionStorage.getItem(`tabId_${userRoleKey}`);
-  if (!tabId) {
-    tabId = uuidv4();
-    sessionStorage.setItem(`tabId_${userRoleKey}`, tabId);
-  }
-
-  // --- Single Active Tab Logic (Snapchat Web style) ---
-  const [isActiveTab, setIsActiveTab] = useState(true);
-  const [handoffPending, setHandoffPending] = useState(false);
-  const ACTIVE_TAB_KEY = `venueFinder_active_tab_id_${userRoleKey}`;
-  const ACTIVE_TAB_TIMESTAMP_KEY = `venueFinder_active_tab_timestamp_${userRoleKey}`;
-  const HANDOFF_DELAY = 3500; // ms
-
-  // BroadcastChannel setup (with fallback)
-  const bcRef = useRef<BroadcastChannel | null>(null);
-  useEffect(() => {
-    if ('BroadcastChannel' in window) {
-      bcRef.current = new BroadcastChannel(`venueFinder_active_tab_${userRoleKey}`);
-    }
-    return () => {
-      if (bcRef.current) bcRef.current.close();
-    };
-  }, [userRoleKey]);
-
-  // Helper to broadcast messages
-  const broadcast = useCallback((msg: any) => {
-    if (bcRef.current) {
-      bcRef.current.postMessage(msg);
-    } else {
-      // Fallback: use localStorage
-      localStorage.setItem('venueFinder_broadcast', JSON.stringify({ ...msg, _ts: Date.now() }));
-    }
-  }, []);
-
-  // Only enable single active tab logic when user is signed in AND user is 'user' or 'venue_owner'
-  useEffect(() => {
-    if (!user || (user.role !== 'user' && user.role !== 'venue_owner')) {
-      setIsActiveTab(true);
-      setHandoffPending(false);
-      localStorage.removeItem(ACTIVE_TAB_KEY);
-      localStorage.removeItem(ACTIVE_TAB_TIMESTAMP_KEY);
-      return;
-    }
-    let handoffTimer: NodeJS.Timeout | null = null;
-    const requestActive = () => {
-      if (localStorage.getItem(ACTIVE_TAB_KEY) !== tabId) {
-        broadcast({ type: 'request_active', tabId });
-        setHandoffPending(true);
-        handoffTimer = setTimeout(() => {
-          broadcast({ type: 'active_now', tabId });
-          setIsActiveTab(true);
-          setHandoffPending(false);
-          localStorage.setItem(ACTIVE_TAB_KEY, tabId);
-          localStorage.setItem(ACTIVE_TAB_TIMESTAMP_KEY, String(Date.now()));
-        }, HANDOFF_DELAY);
-      } else {
-        setIsActiveTab(true);
-        setHandoffPending(false);
-      }
-    };
-    window.addEventListener('focus', requestActive);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') requestActive();
-    });
-    // On mount, check if this tab is active or should claim active
-    const activeTabId = localStorage.getItem(ACTIVE_TAB_KEY);
-    if (!activeTabId || activeTabId === tabId) {
-      localStorage.setItem(ACTIVE_TAB_KEY, tabId);
-      localStorage.setItem(ACTIVE_TAB_TIMESTAMP_KEY, String(Date.now()));
-      setIsActiveTab(true);
-      setHandoffPending(false);
-    } else {
-      setIsActiveTab(false);
-      setHandoffPending(false);
-    }
-    return () => {
-      window.removeEventListener('focus', requestActive);
-      document.removeEventListener('visibilitychange', requestActive);
-      if (handoffTimer) clearTimeout(handoffTimer);
-    };
-  }, [tabId, broadcast, user]);
-
-  // Listen for cross-tab messages (only when signed in)
-  useEffect(() => {
-    if (!user) return;
-    const handleMsg = (msg: any) => {
-      if (!msg) return;
-      if (msg.type === 'request_active') {
-        if (localStorage.getItem(ACTIVE_TAB_KEY) === tabId) {
-          setIsActiveTab(false);
-          setHandoffPending(true);
-        }
-      } else if (msg.type === 'active_now') {
-        setIsActiveTab(msg.tabId === tabId);
-        setHandoffPending(false);
-        localStorage.setItem(ACTIVE_TAB_KEY, msg.tabId);
-        localStorage.setItem(ACTIVE_TAB_TIMESTAMP_KEY, String(Date.now()));
-      }
-    };
-    if (bcRef.current) {
-      bcRef.current.onmessage = (e) => handleMsg(e.data);
-    }
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'venueFinder_broadcast' && event.newValue) {
-        try {
-          const msg = JSON.parse(event.newValue);
-          handleMsg(msg);
-        } catch {}
-      }
-      if (event.key === ACTIVE_TAB_KEY) {
-        setIsActiveTab(localStorage.getItem(ACTIVE_TAB_KEY) === tabId);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      if (bcRef.current) bcRef.current.onmessage = null;
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, [tabId, user]);
-
   // Stable handleUserLogout for context
   const handleUserLogout = useCallback(async (logoutUser?: UserProfile | null) => {
     const targetUser = logoutUser ?? user;
@@ -202,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await sessionService.logUserAction(targetUser.user_id, 'logout', {
           method: 'manual',
           timestamp: new Date().toISOString(),
-          tabId
+          tabId: uuidv4() // Use a new tabId for logout
         });
         await sessionService.endSession();
       } catch (error) {}
@@ -212,14 +88,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setVersion(v => v + 1);
     // syncUserStateToLocalStorage(null); // This is now handled inside initializeAuth
     sessionStorage.removeItem('venueFinder_session');
-  }, [user, tabId]);
+  }, [user]);
 
   // Periodic session validity check (every 5 minutes)
   useEffect(() => {
-    const interval = setInterval(async () => {
+    let retryTimeout: NodeJS.Timeout | null = null;
+    const checkSession = async (retry = false) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
+          if (!retry) {
+            // Grace period: retry once after 2 seconds before logging out
+            retryTimeout = setTimeout(() => checkSession(true), 2000);
+            return;
+          }
           setUser(null);
           setLoading(false);
           setVersion(v => v + 1);
@@ -229,11 +111,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             type: 'session_expired',
             user: null,
             timestamp: Date.now(),
-            tabId
+            tabId: uuidv4()
           }));
-          toast.error('Your session has expired. Please sign in again.');
-          await supabase.auth.signOut();
-          window.location.href = '/signin';
+          // Only show toast and redirect if not already on sign-in page
+          if (!window.location.pathname.includes('signin')) {
+            toast.error('Your session has expired. Please sign in again.');
+            await supabase.auth.signOut();
+            window.location.href = '/signin';
+          }
         } else if (session && !user) {
           const { data: profile } = await supabase
             .from('profiles')
@@ -250,27 +135,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Error checking session validity:', error);
       }
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [tabId, user]);
+    };
+    const interval = setInterval(() => checkSession(false), 5 * 60 * 1000);
+    return () => {
+      clearInterval(interval);
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [user]);
 
   // Listen for changes to venueFinder_user in localStorage (cross-tab and tab duplication)
   useEffect(() => {
     const handleUserStorageChange = (event: StorageEvent) => {
       if (event.key === 'venueFinder_user') {
-        if (event.newValue) {
-          try {
-            const userData = JSON.parse(event.newValue);
-            setUser(userData);
-            setVersion(v => v + 1);
-          } catch (error) {
-            setUser(null);
-            setVersion(v => v + 1);
-          }
-        } else {
+        if (event.newValue === null) {
           setUser(null);
           setVersion(v => v + 1);
         }
+        // Do NOT auto-login other tabs if event.newValue is set
       }
     };
     window.addEventListener('storage', handleUserStorageChange);
@@ -295,7 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           type: 'user_updated',
           user: userData,
           timestamp: Date.now(),
-          tabId
+          tabId: uuidv4()
         }));
       } else {
         localStorage.removeItem('venueFinder_user');
@@ -303,7 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           type: 'user_logout',
           user: null,
           timestamp: Date.now(),
-          tabId
+          tabId: uuidv4()
         }));
       }
     };
@@ -359,12 +240,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await syncUserProfile(supabaseUser);
       try {
         // Update active_tab_id in profiles
-        await supabase.from('profiles').update({ active_tab_id: tabId }).eq('user_id', supabaseUser.id);
         await sessionService.createSession(supabaseUser.id);
         await sessionService.logUserAction(supabaseUser.id, 'login', {
           method: 'email',
           timestamp: new Date().toISOString(),
-          tabId
+          tabId: uuidv4()
         });
         sessionService.startPageViewTracking(supabaseUser.id);
       } catch (error) {}
@@ -511,7 +391,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (typeof cleanup === 'function') cleanup();
       });
     };
-  }, [loginInProgress, tabId, isActiveTab]);
+  }, [loginInProgress]);
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -558,21 +438,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await handleUserLogout(user);
       // Clear active_tab_id in profiles
-      if (user) {
-        await supabase.from('profiles').update({ active_tab_id: null }).eq('user_id', user.user_id);
-      }
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Error during sign out:', error);
     } finally {
-      localStorage.removeItem(ACTIVE_TAB_KEY);
-      localStorage.removeItem(ACTIVE_TAB_TIMESTAMP_KEY);
-      sessionStorage.removeItem(`tabId_${userRoleKey}`);
-      setIsActiveTab(true);
-      setHandoffPending(false);
-      window.location.href = '/';
+      localStorage.removeItem('venueFinder_user');
+      localStorage.setItem('venueFinder_auth_event', JSON.stringify({
+        type: 'user_logout',
+        user: null,
+        timestamp: Date.now(),
+        tabId: uuidv4()
+      }));
+      sessionStorage.removeItem('venueFinder_session');
+      if (!window.location.pathname.includes('signin')) {
+        window.location.href = '/';
+      }
     }
-  }, [handleUserLogout, user, userRoleKey]);
+  }, [handleUserLogout, user]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { success: false, error: 'User not authenticated' };
@@ -643,7 +525,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               await sessionService.logUserAction(data.user.id, 'login', {
                 method: 'email',
                 timestamp: new Date().toISOString(),
-                tabId
+                tabId: uuidv4()
               });
               sessionService.startPageViewTracking(data.user.id);
             } catch (sessionError) {
@@ -672,7 +554,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const value: AuthContextType & { version: number; isActiveTab: boolean; handoffPending: boolean } = {
+  const value: AuthContextType & { version: number } = {
       user,
       loading: loading && !initialized, // Only show loading if not initialized
       version, // Add version to context value
@@ -682,8 +564,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       signOut,
     updateProfile,
     refreshUserProfile,
-    isActiveTab,
-    handoffPending,
   };
 
   return (

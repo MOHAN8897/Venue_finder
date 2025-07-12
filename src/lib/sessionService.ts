@@ -384,4 +384,32 @@ class SessionService {
   }
 }
 
+/**
+ * Custom admin login for Super Admins/Admins using the admin_users table.
+ * Returns { success: boolean, role?: string, error?: string }
+ */
+export async function adminLogin(email: string, password: string) {
+  try {
+    const { data, error } = await supabase
+      .from('admin_users')
+      .select('id, email, role, password')
+      .eq('email', email)
+      .single();
+    if (error || !data) {
+      return { success: false, error: 'Invalid email or password.' };
+    }
+    // For demo: compare plaintext (in production, use hashed passwords!)
+    if (data.password !== password) {
+      return { success: false, error: 'Invalid email or password.' };
+    }
+    // Set admin session in localStorage
+    localStorage.setItem('userRole', 'administrator');
+    localStorage.setItem('adminEmail', data.email);
+    localStorage.setItem('adminRole', data.role);
+    return { success: true, role: data.role };
+  } catch (err) {
+    return { success: false, error: 'Login failed.' };
+  }
+}
+
 export const sessionService = new SessionService(); 

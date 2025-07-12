@@ -9,9 +9,9 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-dashboard-content dark">
+    <div className="bg-dashboard-content dark h-full w-full">
       <SidebarProvider>
-        <div className="flex min-h-screen w-full">
+        <div className="flex w-full h-full">
           <AdminSidebar />
           <div className="flex-1 flex flex-col">
             <DashboardHeader />
