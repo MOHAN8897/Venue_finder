@@ -1,36 +1,77 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, ArrowLeft } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Home, LogIn, Shield, ArrowLeft } from 'lucide-react';
 
 const Unauthorized: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
-        <div className="bg-white rounded-2xl p-8 shadow-lg">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Shield className="h-8 w-8 text-red-600" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="max-w-md mx-auto text-center">
+        {/* Error Icon */}
+        <div className="mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-yellow-100 rounded-full mb-4">
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-yellow-600" />
           </div>
-          
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-8">
-            You don't have permission to access this page. Please contact an administrator if you believe this is an error.
+        </div>
+
+        {/* Error Message */}
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">Unauthorized Access</h2>
+          <p className="text-gray-600 text-sm sm:text-base">
+            You don't have permission to access this page. Please sign in with the appropriate account.
           </p>
+        </div>
+
+        {/* Action Buttons - Mobile Optimized */}
+        <div className="space-y-3 sm:space-y-4">
+          <Link to="/signin">
+            <Button className="w-full h-12 sm:h-10 text-sm sm:text-base">
+              <LogIn className="h-4 w-4 mr-2" />
+              Sign In
+            </Button>
+          </Link>
           
-          <div className="space-y-4">
-            <Link
-              to="/"
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center space-x-2"
-            >
-              <ArrowLeft className="h-5 w-5" />
-              <span>Go to Homepage</span>
-            </Link>
-            
-            <Link
-              to="/login"
-              className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
-            >
-              Login with Different Account
-            </Link>
+          <Link to="/">
+            <Button variant="outline" className="w-full h-12 sm:h-10 text-sm sm:text-base">
+              <Home className="h-4 w-4 mr-2" />
+              Go to Homepage
+            </Button>
+          </Link>
+
+          <Button 
+            variant="ghost" 
+            onClick={() => window.history.back()}
+            className="w-full h-12 sm:h-10 text-sm sm:text-base"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Go Back
+          </Button>
+        </div>
+
+        {/* Helpful Information - Mobile Optimized */}
+        <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-200">
+          <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-3 sm:mb-4">
+            Need Help?
+          </h3>
+          <div className="space-y-2 sm:space-y-3">
+            <p className="text-gray-600 text-xs sm:text-sm">
+              If you believe you should have access to this page, please contact support.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
+              <Link 
+                to="/contact" 
+                className="text-blue-600 hover:text-blue-700 text-sm sm:text-base hover:underline"
+              >
+                Contact Support
+              </Link>
+              <Link 
+                to="/help" 
+                className="text-blue-600 hover:text-blue-700 text-sm sm:text-base hover:underline"
+              >
+                Help Center
+              </Link>
+            </div>
           </div>
         </div>
       </div>

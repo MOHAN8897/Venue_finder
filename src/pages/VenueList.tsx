@@ -1,282 +1,287 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { MapPin, Heart } from 'lucide-react';
-import { venueService, Venue, VenueFilters } from '../lib/venueService';
-import { useAuth } from '../hooks/useAuth';
-import { favoritesService } from '../lib/userService';
-
-const venueTypes = [
-  { value: '', label: 'All Types' },
-  { value: 'cricket-box', label: 'Cricket Box' },
-  { value: 'farmhouse', label: 'Farmhouse' },
-  { value: 'banquet-hall', label: 'Banquet Hall' },
-  { value: 'sports-complex', label: 'Sports Complex' },
-  { value: 'party-hall', label: 'Party Hall' },
-  { value: 'conference-room', label: 'Conference Room' },
-];
-
-interface VenueCardProps {
-  venue: Venue;
-  favoriteVenueIds: Set<string>;
-  favoritesLoading: boolean;
-  handleToggleFavorite: (venueId: string) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}
-
-// Memoized Venue Card
-const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handleToggleFavorite, navigate }: VenueCardProps) => (
-  <div
-    key={venue.id}
-    className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-row transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl group border border-gray-100 relative h-48"
-  >
-    {/* Favorite Heart Icon */}
-    <button
-      className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white shadow-md hover:bg-red-50 transition-colors ${favoritesLoading ? 'opacity-50 pointer-events-none' : ''}`}
-      onClick={() => handleToggleFavorite(venue.id)}
-      aria-label={favoriteVenueIds.has(venue.id) ? 'Remove from favorites' : 'Add to favorites'}
-      disabled={favoritesLoading}
-    >
-      <Heart
-        className={`h-6 w-6 ${favoriteVenueIds.has(venue.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
-        fill={favoriteVenueIds.has(venue.id) ? 'currentColor' : 'none'}
-      />
-    </button>
-    {/* End Favorite Heart Icon */}
-    
-    {/* Left Section - Image */}
-    <div className="w-1/2 h-full overflow-hidden">
-      <img
-        src={
-          (venue.image_urls && venue.image_urls.length > 0 && venue.image_urls[0]) ||
-          (venue.images && venue.images.length > 0 && venue.images[0]) ||
-          'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'
-        }
-        alt={venue.name}
-        loading="lazy"
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        style={{ objectPosition: 'center' }}
-      />
-    </div>
-    
-    {/* Right Section - Details */}
-    <div className="w-1/2 flex flex-col p-5 justify-between">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-1 truncate">{venue.name}</h2>
-        <div className="flex items-center text-gray-500 text-sm mb-2">
-          <MapPin className="h-4 w-4 mr-1 text-blue-500" />
-          <span className="truncate">{venue.city}, {venue.state}</span>
-        </div>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg font-bold text-blue-600">₹{venue.hourly_rate}</span>
-          <span className="text-xs text-gray-500">/ hour</span>
-        </div>
-      </div>
-      
-      <div className="flex gap-2">
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold"
-          style={{ textTransform: 'none', fontWeight: 600 }}
-          onClick={() => navigate(`/venues/${venue.id}`)}
-        >
-          View Details
-        </button>
-        <button
-          className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-semibold"
-          style={{ textTransform: 'none', fontWeight: 600 }}
-          onClick={() => navigate(`/book/${venue.id}`)}
-        >
-          Book Now
-        </button>
-      </div>
-    </div>
-  </div>
-));
-
-const PAGE_SIZE = 12;
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Badge } from '../components/ui/badge';
+import { MapPin, Star, Users, Calendar, Search, Filter, Grid, List, ArrowLeft } from 'lucide-react';
+import { venueService, Venue } from '../lib/venueService';
 
 const VenueList: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [venues, setVenues] = useState<Venue[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
-  // Filter state initialized from URL
-  const [location, setLocation] = useState(searchParams.get('location') || '');
-  const [type, setType] = useState(searchParams.get('type') || '');
-  const { user } = useAuth();
-  const [favoriteVenueIds, setFavoriteVenueIds] = useState<Set<string>>(new Set());
-  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState('name');
 
-  // Update URL and reload venues when filters change
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (location) params.set('location', location);
-    if (type) params.set('type', type);
-    navigate({ pathname: '/venues', search: params.toString() }, { replace: true });
-    // eslint-disable-next-line
-  }, [location, type]);
-
-  // Fetch venues from database (with pagination)
-  useEffect(() => {
-    async function fetchVenues() {
-      setLoading(true);
+    const fetchVenues = async () => {
       try {
-        const venueFilters: VenueFilters = {
-          location: location,
-          type: type,
-          minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : 0,
-          maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : 5000,
-          capacity: searchParams.get('capacity') ? Number(searchParams.get('capacity')) : 0,
-          amenities: searchParams.getAll('amenities'),
-        };
-        const { venues: data, total } = await venueService.getFilteredVenues(venueFilters, page, pageSize);
-        setVenues(data);
-        setTotal(total);
-      } catch {
-        // No error handling needed as the error state is not used in the component
+        setLoading(true);
+        const data = await venueService.getAllVenues();
+        setVenues(data || []);
+      } catch (error) {
+        console.error('Error fetching venues:', error);
       } finally {
         setLoading(false);
       }
-    }
+    };
+
     fetchVenues();
-    // eslint-disable-next-line
-  }, [location, type, searchParams, page, pageSize]);
+  }, []);
 
-  // Load user's favorites on mount (if logged in)
-  useEffect(() => {
-    async function fetchFavorites() {
-      if (!user) return;
-      setFavoritesLoading(true);
-      try {
-        const favs = await favoritesService.getUserFavorites();
-        setFavoriteVenueIds(new Set(favs.map(f => f.venue_id)));
-      } finally {
-        setFavoritesLoading(false);
-      }
+  const filteredVenues = venues.filter(venue => {
+    const matchesSearch = venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         venue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         venue.address.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = !selectedType || venue.type === selectedType;
+    return matchesSearch && matchesType;
+  });
+
+  const sortedVenues = [...filteredVenues].sort((a, b) => {
+    switch (sortBy) {
+      case 'price':
+        return (a.hourly_rate || 0) - (b.hourly_rate || 0);
+      case 'rating':
+        return (b.rating || 0) - (a.rating || 0);
+      case 'capacity':
+        return b.capacity - a.capacity;
+      default:
+        return a.name.localeCompare(b.name);
     }
-    fetchFavorites();
-  }, [user]);
+  });
 
-  // Toggle favorite status
-  const handleToggleFavorite = async (venueId: string) => {
-    if (!user) {
-      alert('Please sign in to add favorites.');
-      return;
-    }
-    setFavoritesLoading(true);
-    if (favoriteVenueIds.has(venueId)) {
-      const result = await favoritesService.removeFromFavorites(venueId);
-      if (result.success) {
-        setFavoriteVenueIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(venueId);
-          return newSet;
-        });
-      }
-    } else {
-      const result = await favoritesService.addToFavorites(venueId);
-      if (result.success) {
-        setFavoriteVenueIds(prev => new Set(prev).add(venueId));
-      }
-    }
-    setFavoritesLoading(false);
-  };
-
-  const memoizedHandleToggleFavorite = useCallback(handleToggleFavorite, [favoriteVenueIds, user]);
-
-  // Pagination controls
-  const totalPages = Math.ceil(total / pageSize);
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPages) return;
-    setPage(newPage);
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-sm">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 text-sm sm:text-base">Loading venues...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div id="venue-list-page" className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filter Bar */}
-        <div className="bg-white rounded-2xl shadow p-4 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between border border-gray-100">
-          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-            <div className="flex flex-col">
-              <label htmlFor="location-filter" className="text-sm font-semibold text-gray-700 mb-1">Location</label>
-              <input
-                id="location-filter"
-                type="text"
-                placeholder="Enter city or area..."
-                value={location}
-                onChange={e => setLocation(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-              />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Back Navigation - Mobile Optimized */}
+        <div className="mb-4 sm:mb-6">
+          <Link 
+            to="/"
+            className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm sm:text-base"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Home
+          </Link>
+        </div>
+
+        {/* Header - Mobile Optimized */}
+        <header className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">All Venues</h1>
+              <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
+                Discover amazing venues for your next event
+              </p>
             </div>
-            <div className="flex flex-col">
-              <label htmlFor="type-filter" className="text-sm font-semibold text-gray-700 mb-1">Venue Type</label>
-              <select
-                id="type-filter"
-                value={type}
-                onChange={e => setType(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="h-10 sm:h-9"
               >
-                {venueTypes.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="h-10 sm:h-9"
+              >
+                <List className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-        </div>
-        {/* End Filter Bar */}
-        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">Browse Venues</h1>
-        {/* Venue Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {loading ? (
-            <div className="col-span-full flex justify-center items-center py-12">
-              <span>Loading venues...</span>
-            </div>
-          ) : venues.length === 0 ? (
-            <div className="col-span-full flex justify-center items-center py-12">
-              <span>No venues found.</span>
-            </div>
-          ) : (
-            venues.map((venue) => (
-              <VenueCard
-                key={venue.id}
-                venue={venue}
-                favoriteVenueIds={favoriteVenueIds}
-                favoritesLoading={favoritesLoading}
-                handleToggleFavorite={memoizedHandleToggleFavorite}
-                navigate={navigate}
+        </header>
+
+        {/* Search and Filters - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search venues..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-12 sm:h-10 text-sm sm:text-base"
               />
-            ))
-          )}
+            </div>
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="h-12 sm:h-10 text-sm sm:text-base">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="wedding">Wedding</SelectItem>
+                <SelectItem value="corporate">Corporate</SelectItem>
+                <SelectItem value="birthday">Birthday</SelectItem>
+                <SelectItem value="conference">Conference</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="h-12 sm:h-10 text-sm sm:text-base">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="price">Price</SelectItem>
+                <SelectItem value="rating">Rating</SelectItem>
+                <SelectItem value="capacity">Capacity</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" className="h-12 sm:h-10 text-sm sm:text-base">
+              <Filter className="h-4 w-4 mr-2" />
+              More Filters
+            </Button>
+          </div>
         </div>
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-8 gap-2">
-            <button
-              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1}
-            >
-              Prev
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                className={`px-3 py-1 rounded border ${p === page ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
-                onClick={() => handlePageChange(p)}
-                disabled={p === page}
-              >
-                {p}
-              </button>
+
+        {/* Results Count */}
+        <div className="mb-4 sm:mb-6">
+          <p className="text-sm sm:text-base text-gray-600">
+            Showing {sortedVenues.length} of {venues.length} venues
+          </p>
+        </div>
+
+        {/* Venues Grid/List - Mobile Optimized */}
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {sortedVenues.map((venue) => (
+              <Card key={venue.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="aspect-video bg-gray-200 relative">
+                  {(venue.image_urls && venue.image_urls[0]) || (venue.images && venue.images[0]) ? (
+                    <img
+                      src={(venue.image_urls && venue.image_urls[0]) || (venue.images && venue.images[0]) || ''}
+                      alt={venue.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <Calendar className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                  <Badge className="absolute top-2 right-2 bg-blue-600 text-white text-xs">
+                    {venue.type}
+                  </Badge>
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-base sm:text-lg mb-2 line-clamp-1">{venue.name}</h3>
+                  <div className="flex items-center gap-1 text-gray-600 text-sm mb-2">
+                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="truncate">{venue.address}</span>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1">
+                      <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />
+                      <span className="text-sm">{venue.rating || 0}</span>
+                      <span className="text-xs text-gray-500">({venue.review_count || 0})</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span>{venue.capacity}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-green-600 text-sm sm:text-base">
+                      ₹{venue.hourly_rate || venue.price_per_hour || 0}/hour
+                    </span>
+                    <Link to={`/venue/${venue.id}`}>
+                      <Button size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
+                        View Details
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
-            <button
-              className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === totalPages}
-            >
-              Next
-            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sortedVenues.map((venue) => (
+              <Card key={venue.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="w-full sm:w-48 h-32 bg-gray-200 rounded-lg relative flex-shrink-0">
+                      {(venue.image_urls && venue.image_urls[0]) || (venue.images && venue.images[0]) ? (
+                        <img
+                          src={(venue.image_urls && venue.image_urls[0]) || (venue.images && venue.images[0]) || ''}
+                          alt={venue.name}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-200 rounded-lg">
+                          <Calendar className="h-8 w-8 text-gray-400" />
+                        </div>
+                      )}
+                      <Badge className="absolute top-2 right-2 bg-blue-600 text-white text-xs">
+                        {venue.type}
+                      </Badge>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base sm:text-lg mb-2">{venue.name}</h3>
+                      <p className="text-gray-600 text-sm sm:text-base mb-3 line-clamp-2">
+                        {venue.description}
+                      </p>
+                      <div className="flex items-center gap-1 text-gray-600 text-sm mb-3">
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="truncate">{venue.address}</span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />
+                            <span>{venue.rating || 0}</span>
+                            <span className="text-gray-500">({venue.review_count || 0})</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span>Capacity: {venue.capacity}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-green-600 text-sm sm:text-base">
+                            ₹{venue.hourly_rate || venue.price_per_hour || 0}/hour
+                          </span>
+                          <Link to={`/venue/${venue.id}`}>
+                            <Button size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
+                              View Details
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {sortedVenues.length === 0 && (
+          <div className="text-center py-12">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No venues found</h3>
+            <p className="text-gray-600 text-sm sm:text-base mb-4">
+              Try adjusting your search criteria or filters
+            </p>
+            <Button onClick={() => { setSearchTerm(''); setSelectedType(''); }}>
+              Clear Filters
+            </Button>
           </div>
         )}
       </div>

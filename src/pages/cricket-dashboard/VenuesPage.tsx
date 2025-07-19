@@ -5,12 +5,13 @@ import { AddVenueDialog } from "@/components/cricket-dashboard/AddBoxDialog";
 import { GoogleMapView } from "@/components/cricket-dashboard/GoogleMapView";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Grid3X3, Map, Building2 } from "lucide-react";
+import { Plus, Grid3X3, Map, Building2, Filter, Search } from "lucide-react";
 import { useState, useEffect, useContext } from "react";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { AuthContext } from "@/context/AuthContext";
 import { VenueDetailsModal } from '@/components/dashboard/VenueDetailsModal';
+import { Input } from "@/components/ui/input";
 
 export interface Venue {
   id: string;
@@ -46,7 +47,11 @@ const VenuesPage = () => {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const { user } = useContext(AuthContext)!;
+
   // Fetch venues for the logged-in owner
   useEffect(() => {
     const fetchVenues = async () => {
@@ -121,36 +126,48 @@ const VenuesPage = () => {
     }
   };
 
+  // Filter venues based on search and status
+  const filteredVenues = venues.filter(venue => {
+    const matchesSearch = venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         venue.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || venue.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   if (venues.length === 0) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My Venues</h1>
-              <p className="text-muted-foreground">Manage your venues and settings</p>
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
+          {/* Header - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">My Venues</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">Manage your venues and settings</p>
             </div>
             <Button 
               onClick={() => setIsAddDialogOpen(true)} 
-              className="bg-gradient-accent hover:bg-accent/90 w-full sm:w-auto"
+              className="bg-gradient-accent hover:bg-accent/90 w-full sm:w-auto h-12 sm:h-10"
+              size="lg"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add New Venue
+              <span className="hidden sm:inline">Add New Venue</span>
+              <span className="sm:hidden">Add Venue</span>
             </Button>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-24 h-24 bg-gradient-primary rounded-2xl flex items-center justify-center mb-6">
-              <Building2 className="h-12 w-12 text-primary-foreground" />
+          {/* Empty State - Mobile Optimized */}
+          <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center px-4">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-primary rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+              <Building2 className="h-8 w-8 sm:h-12 sm:w-12 text-primary-foreground" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">No venues yet</h2>
-            <p className="text-muted-foreground mb-8 max-w-md">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">No venues yet</h2>
+            <p className="text-muted-foreground mb-6 sm:mb-8 max-w-md text-sm sm:text-base">
               Start building your venue business by adding your first venue. You can manage pricing, availability, and bookings all in one place.
             </p>
             <Button 
               onClick={() => setIsAddDialogOpen(true)}
               size="lg"
-              className="bg-gradient-primary hover:bg-primary/90"
+              className="bg-gradient-primary hover:bg-primary/90 h-12 px-6"
             >
               <Plus className="h-5 w-5 mr-2" />
               Add Your First Venue
@@ -169,46 +186,117 @@ const VenuesPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My Venues</h1>
-            <p className="text-muted-foreground">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        {/* Header - Mobile Optimized */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">My Venues</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
               Managing {venues.length} venue{venues.length !== 1 ? 's' : ''}
             </p>
           </div>
           <Button 
             onClick={() => setIsAddDialogOpen(true)} 
-            className="bg-gradient-accent hover:bg-accent/90 w-full sm:w-auto"
+            className="bg-gradient-accent hover:bg-accent/90 w-full sm:w-auto h-12 sm:h-10"
+            size="lg"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add New Venue
+            <span className="hidden sm:inline">Add New Venue</span>
+            <span className="sm:hidden">Add Venue</span>
           </Button>
         </div>
 
-        <Tabs defaultValue="grid" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-1">
-            <TabsTrigger value="grid" className="flex items-center gap-2">
-              <Grid3X3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Grid View</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Search and Filters - Mobile Optimized */}
+        <div className="space-y-3 sm:space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search venues by name or address..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 sm:h-10"
+            />
+          </div>
 
-          <TabsContent value="grid" className="space-y-4">
-            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              {venues.map((venue) => (
+          {/* Filters and View Toggle - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            {/* Status Filter */}
+            <div className="flex-1">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full h-12 sm:h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Grid3X3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Grid</span>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Map className="h-4 w-4" />
+                <span className="hidden sm:inline">List</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Results Count */}
+        <div className="text-sm text-muted-foreground">
+          {filteredVenues.length} venue{filteredVenues.length !== 1 ? 's' : ''} found
+        </div>
+
+        {/* Venues Grid/List - Mobile Optimized */}
+        <div className="space-y-4">
+          {filteredVenues.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground text-sm sm:text-base">
+                No venues match your search criteria.
+              </p>
+            </div>
+          ) : (
+            <div className={
+              viewMode === 'grid' 
+                ? "grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
+                : "space-y-4"
+            }>
+              {filteredVenues.map((venue) => (
                 <VenueCard
                   key={venue.id}
                   venue={venue}
                   onUpdate={handleUpdateVenue}
                   onDelete={handleDeleteVenue}
                   onSelect={setSelectedVenue}
+                  layout={viewMode}
                 />
               ))}
             </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
 
+        {/* Dialogs */}
         <AddVenueDialog
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}

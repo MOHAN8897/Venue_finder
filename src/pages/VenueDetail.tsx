@@ -86,9 +86,9 @@ const VenueDetailPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading venue details...</p>
+        <div className="text-center px-4">
+          <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto mb-3 sm:mb-4"></div>
+          <p className="text-sm sm:text-base text-gray-600">Loading venue details...</p>
         </div>
       </div>
     );
@@ -96,18 +96,18 @@ const VenueDetailPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="text-center py-10">
-        <div className="text-red-500 text-xl mb-4">{error}</div>
-        <p className="text-gray-600">Please check the venue ID and try again.</p>
+      <div className="text-center py-8 sm:py-10 px-4">
+        <div className="text-red-500 text-lg sm:text-xl mb-3 sm:mb-4">{error}</div>
+        <p className="text-sm sm:text-base text-gray-600">Please check the venue ID and try again.</p>
       </div>
     );
   }
 
   if (!venue) {
     return (
-      <div className="text-center py-10">
-        <div className="text-gray-500 text-xl mb-4">Venue not found.</div>
-        <p className="text-gray-600">The venue you're looking for doesn't exist or may have been removed.</p>
+      <div className="text-center py-8 sm:py-10 px-4">
+        <div className="text-gray-500 text-lg sm:text-xl mb-3 sm:mb-4">Venue not found.</div>
+        <p className="text-sm sm:text-base text-gray-600">The venue you're looking for doesn't exist or may have been removed.</p>
       </div>
     );
   }
@@ -123,11 +123,11 @@ const VenueDetailPage: React.FC = () => {
       {/* Image Carousel at the top */}
       <ImageCarousel images={images} venueName={venue.venue_name || venue.name || 'Venue'} />
       
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main content - Mobile Optimized */}
+      <div className="max-w-7xl mx-auto py-4 sm:py-6 md:py-8 px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Left column - Venue details */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
             <VenueDescription venue={venue} />
             <VenueAmenities amenities={venue.amenities || []} />
             <VenueMap mapEmbedCode={venue.map_embed_code || venue.google_maps_link || ''} />

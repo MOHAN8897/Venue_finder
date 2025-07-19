@@ -100,7 +100,7 @@ const SignIn: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-indigo-500 via-blue-400 to-purple-400 animate-gradient-x overflow-hidden relative">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-indigo-500 via-blue-400 to-purple-400 animate-gradient-x overflow-hidden relative px-4">
       {/* Animated Gradient Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <svg className="w-full h-full" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -110,15 +110,15 @@ const SignIn: React.FC = () => {
         </svg>
       </div>
       <div className="relative z-10 w-full max-w-md mx-auto">
-        <div className="backdrop-blur-xl bg-white/30 border border-white/20 shadow-2xl rounded-3xl px-8 py-10 sm:px-10 sm:py-12 flex flex-col items-center transition-all duration-300">
-          <div className="mb-6 flex flex-col items-center">
-            <div className="bg-gradient-to-br from-indigo-500 to-blue-400 rounded-full p-3 shadow-lg mb-2 animate-bounce">
-              <User className="h-8 w-8 text-white" />
+        <div className="backdrop-blur-xl bg-white/30 border border-white/20 shadow-2xl rounded-2xl sm:rounded-3xl px-6 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12 flex flex-col items-center transition-all duration-300">
+          <div className="mb-4 sm:mb-6 flex flex-col items-center">
+            <div className="bg-gradient-to-br from-indigo-500 to-blue-400 rounded-full p-2 sm:p-3 shadow-lg mb-2 animate-bounce">
+              <User className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 drop-shadow-lg text-center">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 drop-shadow-lg text-center px-2">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </h2>
-            <p className="mt-2 text-sm text-gray-700 text-center">
+            <p className="mt-2 text-xs sm:text-sm text-gray-700 text-center px-2">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
               <button
                 onClick={() => setIsSignUp(!isSignUp)}
@@ -133,7 +133,7 @@ const SignIn: React.FC = () => {
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-white/80 hover:bg-white/100 border border-gray-200 shadow-md text-gray-700 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-60 mb-6"
+            className="w-full flex items-center justify-center gap-2 py-3 sm:py-2 px-4 rounded-lg bg-white/80 hover:bg-white/100 border border-gray-200 shadow-md text-gray-700 font-semibold text-sm sm:text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-60 mb-4 sm:mb-6 min-h-[44px]"
           >
             <span className="inline-block h-5 w-5">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -153,22 +153,22 @@ const SignIn: React.FC = () => {
             {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Continue with Google'}
           </button>
 
-          <div className="relative w-full flex items-center mb-6">
+          <div className="relative w-full flex items-center mb-4 sm:mb-6">
             <div className="flex-grow border-t border-gray-300" />
             <span className="mx-3 text-gray-400 text-xs">or</span>
             <div className="flex-grow border-t border-gray-300" />
           </div>
 
-          <form className="w-full space-y-5" onSubmit={handleEmailAuth} autoComplete="on">
+          <form className="w-full space-y-4 sm:space-y-5" onSubmit={handleEmailAuth} autoComplete="on">
             {error && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-md text-sm animate-shake">
-                <AlertCircle className="h-4 w-4" />
-                {error}
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm animate-shake">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span className="break-words">{error}</span>
               </div>
             )}
             {success && (
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-md text-sm animate-fade-in">
-                <CheckCircle className="h-4 w-4" />
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm animate-fade-in">
+                <CheckCircle className="h-4 w-4 flex-shrink-0" />
                 Success! Redirecting...
               </div>
             )}
