@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Star, Users, Wifi, Car, Snowflake, Coffee, Bath, Phone, Mail, Globe, Clock, Calendar, Filter, X, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { MapPin, Star, Users, Wifi, Car, Snowflake, Coffee, Bath, Phone, Mail, Globe, Clock, Calendar, Filter, X, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { venueService, Venue } from '../lib/venueService';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '../components/ui/card';
@@ -11,6 +11,7 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
 // Amenity icons mapping
 const amenityIcons: Record<string, React.ReactNode> = {
@@ -135,6 +136,9 @@ const BrowseVenues: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [availableAmenities, setAvailableAmenities] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedVenue, setSelectedVenue] = useState<ExtendedVenue | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
@@ -308,8 +312,10 @@ const BrowseVenues: React.FC = () => {
     });
   };
 
-  const handleViewDetails = (venueId: string) => {
-    navigate(`/venue/${venueId}`);
+  const handleViewDetails = (venue: ExtendedVenue) => {
+    setSelectedVenue(venue);
+    setCurrentImageIndex(0);
+    setIsModalOpen(true);
   };
 
   const handleBookNow = (venueId: string) => {
@@ -319,6 +325,169 @@ const BrowseVenues: React.FC = () => {
   const renderAmenityIcon = (amenity: string) => {
     const amenityKey = amenity.toLowerCase().replace(/\s+/g, '_');
     return amenityIcons[amenityKey] || <span className="h-4 w-4">•</span>;
+  };
+
+  // Venue Detail Modal with Image Carousel
+  const VenueDetailModal: React.FC = () => {
+    if (!selectedVenue) return null;
+
+    const images = selectedVenue.images || selectedVenue.image_urls || selectedVenue.photos || [];
+    const amenities = selectedVenue.amenities || [];
+
+    const nextImage = () => {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    };
+
+    const prevImage = () => {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    return (
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-md w-full max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="p-0">
+            <DialogTitle className="sr-only">Venue Details</DialogTitle>
+          </DialogHeader>
+          
+          {/* Image Carousel */}
+          <div className="relative w-full h-64 bg-gray-100">
+            {images.length > 0 ? (
+              <>
+                <img
+                  src={images[currentImageIndex]}
+                  alt={`${selectedVenue.name} - Image ${currentImageIndex + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                
+                {/* Carousel Navigation */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevImage}
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Image Indicators */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                      {images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-2 h-2 rounded-full transition-colors ${
+                            index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-12 h-12 mx-auto mb-2 text-gray-400">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-500 text-sm">No Images Available</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Venue Details */}
+          <div className="p-4 space-y-4">
+            {/* Venue Name and Rating */}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">{selectedVenue.name}</h2>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span>{selectedVenue.rating?.toFixed(1) || selectedVenue.average_rating?.toFixed(1) || 'N/A'}</span>
+                  <span>•</span>
+                  <span>{selectedVenue.type}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div className="flex items-start gap-2">
+              <MapPin className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-gray-700">{selectedVenue.address}</span>
+            </div>
+
+            {/* Capacity */}
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-700">Up to {selectedVenue.capacity} people</span>
+            </div>
+
+            {/* Amenities */}
+            {amenities.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-2">Amenities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {amenities.map((amenity, index) => (
+                    <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
+                      {renderAmenityIcon(amenity)}
+                      <span className="capitalize">{amenity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Price */}
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                ₹{selectedVenue.price_per_day || selectedVenue.price_per_hour || selectedVenue.hourly_rate || 0}
+              </div>
+              <div className="text-sm text-gray-600">per day</div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  navigate(`/venue/${selectedVenue.id}`);
+                }}
+              >
+                View Full Details
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  navigate(`/book/${selectedVenue.id}`);
+                }}
+              >
+                Book Now
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   // Compact Filter Section for Mobile
@@ -726,7 +895,7 @@ const BrowseVenues: React.FC = () => {
                   variant="outline" 
                   size="sm"
                   className="text-xs h-8 px-3"
-                  onClick={() => handleViewDetails(venue.id)}
+                  onClick={() => handleViewDetails(venue)}
                 >
                   View
                 </Button>
@@ -846,7 +1015,7 @@ const BrowseVenues: React.FC = () => {
             <Button
               variant="outline" 
               className="flex-1 text-xs sm:text-sm min-h-[44px]"
-              onClick={() => handleViewDetails(venue.id)}
+              onClick={() => handleViewDetails(venue)}
             >
               View Details
             </Button>
@@ -979,6 +1148,9 @@ const BrowseVenues: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Venue Detail Modal */}
+      <VenueDetailModal />
     </div>
   );
 };
