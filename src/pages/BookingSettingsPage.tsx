@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../components/ui/switch';
 
 const BookingSettingsPage: React.FC = () => {
-  const location = useLocation();
+    const location = useLocation();
   const venueName = location.state?.venueName || 'this venue';
 
-  return (
+    return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Back Navigation - Mobile Optimized */}
@@ -23,7 +23,7 @@ const BookingSettingsPage: React.FC = () => {
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Manage Venues
-          </Link>
+                    </Link>
         </div>
 
         {/* Header - Mobile Optimized */}
@@ -43,7 +43,7 @@ const BookingSettingsPage: React.FC = () => {
               Save Changes
             </Button>
           </div>
-        </header>
+                </header>
 
         {/* Settings Grid - Mobile Optimized */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -265,9 +265,9 @@ const BookingSettingsPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+            </div>
+        </div>
+    );
 };
 
 export default BookingSettingsPage; 

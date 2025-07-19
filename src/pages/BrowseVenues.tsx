@@ -198,76 +198,9 @@ const BrowseVenues: React.FC = () => {
       });
       setAvailableAmenities(Array.from(allAmenities));
       
-    } catch (error) {
-      console.error('Error fetching venues:', error);
-      setError('Unable to load venues. Please check your internet connection and try again.');
-      
-      // Set some fallback venues for better UX
-      const fallbackVenues = [
-        {
-          id: 'fallback-1',
-          name: 'Sample Cricket Ground',
-          type: 'Cricket Ground',
-          description: 'A beautiful cricket ground with modern facilities',
-          address: 'Sample Address, City',
-          city: 'Sample City',
-          state: 'Sample State',
-          pincode: '123456',
-          capacity: 100,
-          area: '5000 sq ft',
-          hourly_rate: 500,
-          daily_rate: 5000,
-          price_per_hour: 500,
-          price_per_day: 5000,
-          currency: 'INR',
-          images: ['https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400'],
-          videos: [],
-          amenities: ['wifi', 'parking', 'ac'],
-          owner_id: 'fallback-owner',
-          status: 'approved',
-          verified: true,
-          rating: 4.5,
-          review_count: 10,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          approval_status: 'approved' as const,
-          is_approved: true,
-          is_published: true,
-        },
-        {
-          id: 'fallback-2',
-          name: 'Sample Farmhouse',
-          type: 'Farmhouse',
-          description: 'A spacious farmhouse perfect for events',
-          address: 'Sample Address, City',
-          city: 'Sample City',
-          state: 'Sample State',
-          pincode: '123456',
-          capacity: 200,
-          area: '10000 sq ft',
-          hourly_rate: 800,
-          daily_rate: 8000,
-          price_per_hour: 800,
-          price_per_day: 8000,
-          currency: 'INR',
-          images: ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400'],
-          videos: [],
-          amenities: ['wifi', 'parking', 'catering'],
-          owner_id: 'fallback-owner',
-          status: 'approved',
-          verified: true,
-          rating: 4.8,
-          review_count: 15,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          approval_status: 'approved' as const,
-          is_approved: true,
-          is_published: true,
-        }
-      ];
-      
-      setVenues(fallbackVenues);
-      setAvailableAmenities(['wifi', 'parking', 'ac', 'catering']);
+    } catch (err) {
+      console.error('Error fetching venues:', err);
+      setError('Failed to load venues. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -276,61 +209,49 @@ const BrowseVenues: React.FC = () => {
   const applyFilters = () => {
     let filtered = [...venues];
 
-    // Apply price filter (using price_per_day)
-    const minPrice = parseFloat(filters.minPrice) || 0;
-    const maxPrice = parseFloat(filters.maxPrice) || Infinity;
+    // Location filter
+    if (filters.location) {
+      const locationLower = filters.location.toLowerCase();
+      filtered = filtered.filter(venue => 
+        venue.address?.toLowerCase().includes(locationLower) ||
+        venue.city?.toLowerCase().includes(locationLower) ||
+        venue.state?.toLowerCase().includes(locationLower) ||
+        venue.pincode?.toLowerCase().includes(locationLower)
+      );
+    }
+
+    // Price filter
     filtered = filtered.filter(venue => {
       const price = venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0;
-      return price >= minPrice && price <= maxPrice;
+      return price >= filters.priceRange[0] && price <= filters.priceRange[1];
     });
 
-    // Apply venue type filter
+    // Type filter
     if (filters.selectedTypes.length > 0) {
       filtered = filtered.filter(venue => 
         filters.selectedTypes.includes(venue.type)
       );
     }
 
-    // Apply rating filter
+    // Rating filter
     if (filters.selectedRating) {
       filtered = filtered.filter(venue => 
         (venue.rating || venue.average_rating || 0) >= filters.selectedRating!
       );
     }
 
-    // Apply amenities filter
+    // Amenities filter
     if (filters.selectedAmenities.length > 0) {
-      filtered = filtered.filter(venue => {
-        if (!venue.amenities) return false;
-        return filters.selectedAmenities.every((amenity: string) => 
-          venue.amenities!.some((v: string) => v.toLowerCase().includes(amenity.toLowerCase()))
-        );
-      });
+      filtered = filtered.filter(venue => 
+        filters.selectedAmenities.every(amenity => 
+          venue.amenities?.some(v => v.toLowerCase() === amenity.toLowerCase())
+        )
+      );
     }
 
-    // Apply location filter
-    if (filters.location) {
-      filtered = filtered.filter(venue => {
-        const searchTerm = filters.location.toLowerCase();
-        const address = venue.address?.toLowerCase() || '';
-        const city = venue.city?.toLowerCase() || '';
-        const state = venue.state?.toLowerCase() || '';
-        const pincode = venue.pincode?.toLowerCase() || '';
-        
-        return address.includes(searchTerm) || 
-               city.includes(searchTerm) || 
-               state.includes(searchTerm) || 
-               pincode.includes(searchTerm);
-      });
-    }
-
-    // Apply sorting
+    // Sort
     filtered.sort((a, b) => {
       switch (filters.sortBy) {
-        case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         case 'price_low':
           return (a.price_per_day || a.price_per_hour || a.hourly_rate || 0) - (b.price_per_day || b.price_per_hour || b.hourly_rate || 0);
         case 'price_high':
@@ -339,8 +260,11 @@ const BrowseVenues: React.FC = () => {
           return (b.rating || b.average_rating || 0) - (a.rating || a.average_rating || 0);
         case 'name':
           return a.name.localeCompare(b.name);
+        case 'oldest':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'newest':
         default:
-          return 0;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
     });
 
@@ -348,10 +272,7 @@ const BrowseVenues: React.FC = () => {
   };
 
   const handleFilterChange = (filterType: keyof FilterState, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
+    setFilters(prev => ({ ...prev, [filterType]: value }));
   };
 
   const handlePriceRangeChange = (value: [number, number]) => {
@@ -359,18 +280,18 @@ const BrowseVenues: React.FC = () => {
       ...prev,
       priceRange: value,
       minPrice: value[0].toString(),
-      maxPrice: value[1].toString(),
+      maxPrice: value[1].toString()
     }));
   };
 
   const handlePriceInputChange = (type: 'min' | 'max', value: string) => {
-    const numValue = parseFloat(value) || 0;
+    const numValue = parseInt(value) || 0;
     setFilters(prev => ({
       ...prev,
       [type === 'min' ? 'minPrice' : 'maxPrice']: value,
       priceRange: type === 'min' 
         ? [numValue, prev.priceRange[1]] 
-        : [prev.priceRange[0], numValue],
+        : [prev.priceRange[0], numValue]
     }));
   };
 
@@ -396,11 +317,123 @@ const BrowseVenues: React.FC = () => {
   };
 
   const renderAmenityIcon = (amenity: string) => {
-    const amenityKey = amenity.toLowerCase();
+    const amenityKey = amenity.toLowerCase().replace(/\s+/g, '_');
     return amenityIcons[amenityKey] || <span className="h-4 w-4">•</span>;
   };
 
-  const FilterSection: React.FC = () => (
+  // Compact Filter Section for Mobile
+  const CompactFilterSection: React.FC = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 space-y-3 sm:space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2">
+          <Filter className="h-4 w-4" />
+          Quick Filters
+        </h3>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={resetFilters}
+          className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm h-8"
+        >
+          Reset
+        </Button>
+      </div>
+
+      {/* Location and Sort Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+        <div>
+          <Input
+            placeholder="Search location..."
+            value={filters.location}
+            onChange={(e) => handleFilterChange('location', e.target.value)}
+            className="h-9 sm:h-10 text-xs sm:text-sm"
+          />
+        </div>
+        <div>
+          <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
+            <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Price Range - Compact */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs sm:text-sm font-medium">Price Range</span>
+          <span className="text-xs text-gray-500">₹{filters.priceRange[0]} - ₹{filters.priceRange[1]}</span>
+        </div>
+        <Slider
+          value={filters.priceRange}
+          onValueChange={handlePriceRangeChange}
+          max={15000}
+          min={10}
+          step={50}
+          className="w-full"
+        />
+      </div>
+
+      {/* Venue Types - Horizontal Scroll */}
+      <div>
+        <h4 className="text-xs sm:text-sm font-medium mb-2">Venue Type</h4>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {venueTypes.map((type) => (
+            <button
+              key={type.id}
+              onClick={() => {
+                const newTypes = filters.selectedTypes.includes(type.id)
+                  ? filters.selectedTypes.filter(t => t !== type.id)
+                  : [...filters.selectedTypes, type.id];
+                handleFilterChange('selectedTypes', newTypes);
+              }}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs whitespace-nowrap border ${
+                filters.selectedTypes.includes(type.id)
+                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600'
+              }`}
+            >
+              <span>{type.icon}</span>
+              <span>{type.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Active Filters Summary */}
+      {(filters.selectedTypes.length > 0 || filters.selectedRating || filters.selectedAmenities.length > 0 || filters.location) && (
+        <div className="pt-2 border-t">
+          <div className="flex flex-wrap gap-1">
+            {filters.selectedTypes.map(type => (
+              <Badge key={type} variant="secondary" className="text-xs">
+                {venueTypes.find(t => t.id === type)?.label}
+              </Badge>
+            ))}
+            {filters.selectedRating && (
+              <Badge variant="secondary" className="text-xs">
+                {ratingOptions.find(r => r.value === filters.selectedRating)?.label}
+              </Badge>
+            )}
+            {filters.location && (
+              <Badge variant="secondary" className="text-xs">
+                {filters.location}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Full Filter Section for Desktop
+  const FullFilterSection: React.FC = () => (
     <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
@@ -599,10 +632,110 @@ const BrowseVenues: React.FC = () => {
     </div>
   );
 
-  const VenueCard: React.FC<{ venue: ExtendedVenue }> = ({ venue }) => {
+  // Compact Venue Card for Mobile
+  const CompactVenueCard: React.FC<{ venue: ExtendedVenue }> = ({ venue }) => {
     const images = venue.images || venue.image_urls || venue.photos || [];
     const amenities = venue.amenities || [];
-    const displayAmenities = amenities.slice(0, 3); // Reduced for mobile
+    const displayAmenities = amenities.slice(0, 2); // Show only 2 amenities on mobile
+
+    return (
+      <Card className="group overflow-hidden hover:shadow-md transition-all duration-200">
+        <div className="flex">
+          {/* Image - Smaller */}
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0">
+            {images.length > 0 ? (
+              <img
+                src={images[0]}
+                alt={venue.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                <span className="text-gray-500 text-xs">No Image</span>
+              </div>
+            )}
+            
+            {/* Rating Badge - Smaller */}
+            <div className="absolute top-1 right-1">
+              <Badge className="bg-white/90 text-gray-900 text-xs px-1 py-0.5">
+                <Star className="h-2 w-2 fill-yellow-400 text-yellow-400 mr-0.5" />
+                {venue.rating?.toFixed(1) || venue.average_rating?.toFixed(1) || 'N/A'}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Content - Compact */}
+          <div className="flex-1 p-2 sm:p-3 flex flex-col justify-between">
+            <div>
+              {/* Venue Name */}
+              <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-1 mb-1">
+                {venue.name}
+              </h3>
+              
+              {/* Address */}
+              <div className="flex items-center text-xs text-gray-600 mb-1">
+                <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                <span className="line-clamp-1">{venue.address}</span>
+              </div>
+
+              {/* Capacity */}
+              <div className="flex items-center gap-1 text-xs text-gray-600 mb-1">
+                <Users className="h-3 w-3" />
+                <span>Up to {venue.capacity} people</span>
+              </div>
+
+              {/* Amenities - Compact */}
+              {amenities.length > 0 && (
+                <div className="flex gap-1 mb-2">
+                  {displayAmenities.map((amenity, index) => (
+                    <span key={index} className="text-xs text-gray-500">
+                      {renderAmenityIcon(amenity)}
+                    </span>
+                  ))}
+                  {amenities.length > 2 && (
+                    <span className="text-xs text-gray-400">+{amenities.length - 2}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Price and Actions */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm sm:text-base font-bold text-blue-600">
+                  ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
+                </div>
+                <div className="text-xs text-gray-500">per day</div>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline" 
+                  size="sm"
+                  className="text-xs h-7 px-2"
+                  onClick={() => handleViewDetails(venue.id)}
+                >
+                  View
+                </Button>
+                <Button 
+                  size="sm"
+                  className="text-xs h-7 px-2"
+                  onClick={() => handleBookNow(venue.id)}
+                >
+                  Book
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  // Standard Venue Card for Desktop
+  const StandardVenueCard: React.FC<{ venue: ExtendedVenue }> = ({ venue }) => {
+    const images = venue.images || venue.image_urls || venue.photos || [];
+    const amenities = venue.amenities || [];
+    const displayAmenities = amenities.slice(0, 3);
     const remainingCount = amenities.length - 3;
 
     return (
@@ -702,20 +835,20 @@ const BrowseVenues: React.FC = () => {
   };
   
   if (loading) {
-  return (
-      <div className="min-h-screen bg-gray-50 py-8">
+    return (
+      <div className="min-h-screen bg-gray-50 py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <Skeleton className="h-8 w-48 mb-2" />
             <Skeleton className="h-4 w-64" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-80 w-full" />
             ))}
           </div>
         </div>
-          </div>
+      </div>
     );
   }
 
@@ -727,7 +860,7 @@ const BrowseVenues: React.FC = () => {
           <p className="text-gray-600 mb-4">{error}</p>
           <Button onClick={fetchVenues}>Try Again</Button>
         </div>
-          </div>
+      </div>
     );
   }
 
@@ -735,9 +868,9 @@ const BrowseVenues: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-4 sm:py-6 md:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header - Mobile Optimized */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 px-2">Browse Venues</h1>
-          <p className="text-sm sm:text-base text-gray-600 px-2">
+        <div className="mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Browse Venues</h1>
+          <p className="text-sm sm:text-base text-gray-600">
             Discover amazing venues for your events. {filteredVenues.length} venues available.
           </p>
         </div>
@@ -754,34 +887,46 @@ const BrowseVenues: React.FC = () => {
           )}
         </div>
 
-        {/* Mobile Filter Toggle */}
-        <div className="md:hidden mb-4">
-          <Button
-            onClick={() => setShowFilters(!showFilters)}
-            variant="outline"
-            className="w-full flex items-center justify-center gap-2"
-          >
-            <Filter className="h-4 w-4" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </Button>
+        {/* Mobile Layout - Filters at Top */}
+        <div className="lg:hidden">
+          {/* Compact Filters at Top */}
+          <div className="mb-4">
+            <CompactFilterSection />
+          </div>
+
+          {/* Venue Grid - Compact Cards */}
+          <div className="space-y-3">
+            {filteredVenues.length === 0 ? (
+              <div className="text-center py-8 px-4">
+                <div className="text-gray-400 mb-4">
+                  <MapPin className="h-12 w-12 mx-auto" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No venues found</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Try adjusting your filters to find more venues.
+                </p>
+                <Button onClick={resetFilters} variant="outline" className="min-h-[44px]">
+                  Reset Filters
+                </Button>
+              </div>
+            ) : (
+              filteredVenues.map((venue) => (
+                <CompactVenueCard key={venue.id} venue={venue} />
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Mobile Filters - Collapsible */}
-        {showFilters && (
-          <div className="md:hidden mb-6">
-            <FilterSection />
-          </div>
-        )}
-
-        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
-          {/* Left Column - Filters - Hidden on mobile, shown on desktop */}
-          <div className="hidden lg:block w-80 flex-shrink-0">
+        {/* Desktop Layout - Sidebar Filters */}
+        <div className="hidden lg:flex gap-6 lg:gap-8">
+          {/* Left Column - Filters */}
+          <div className="w-80 flex-shrink-0">
             <div className="sticky top-8">
-              <FilterSection />
+              <FullFilterSection />
             </div>
           </div>
 
-          {/* Right Column - Venue Grid - Mobile Optimized */}
+          {/* Right Column - Venue Grid */}
           <div className="flex-1">
             {filteredVenues.length === 0 ? (
               <div className="text-center py-8 sm:py-12 md:py-16 px-4">
@@ -799,7 +944,7 @@ const BrowseVenues: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {filteredVenues.map((venue) => (
-                  <VenueCard key={venue.id} venue={venue} />
+                  <StandardVenueCard key={venue.id} venue={venue} />
                 ))}
               </div>
             )}
