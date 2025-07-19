@@ -198,9 +198,76 @@ const BrowseVenues: React.FC = () => {
       });
       setAvailableAmenities(Array.from(allAmenities));
       
-    } catch (err) {
-      console.error('Error fetching venues:', err);
-      setError('Failed to load venues. Please try again.');
+    } catch (error) {
+      console.error('Error fetching venues:', error);
+      setError('Unable to load venues. Please check your internet connection and try again.');
+      
+      // Set some fallback venues for better UX
+      const fallbackVenues = [
+        {
+          id: 'fallback-1',
+          name: 'Sample Cricket Ground',
+          type: 'Cricket Ground',
+          description: 'A beautiful cricket ground with modern facilities',
+          address: 'Sample Address, City',
+          city: 'Sample City',
+          state: 'Sample State',
+          pincode: '123456',
+          capacity: 100,
+          area: '5000 sq ft',
+          hourly_rate: 500,
+          daily_rate: 5000,
+          price_per_hour: 500,
+          price_per_day: 5000,
+          currency: 'INR',
+          images: ['https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400'],
+          videos: [],
+          amenities: ['wifi', 'parking', 'ac'],
+          owner_id: 'fallback-owner',
+          status: 'approved',
+          verified: true,
+          rating: 4.5,
+          review_count: 10,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          approval_status: 'approved' as const,
+          is_approved: true,
+          is_published: true,
+        },
+        {
+          id: 'fallback-2',
+          name: 'Sample Farmhouse',
+          type: 'Farmhouse',
+          description: 'A spacious farmhouse perfect for events',
+          address: 'Sample Address, City',
+          city: 'Sample City',
+          state: 'Sample State',
+          pincode: '123456',
+          capacity: 200,
+          area: '10000 sq ft',
+          hourly_rate: 800,
+          daily_rate: 8000,
+          price_per_hour: 800,
+          price_per_day: 8000,
+          currency: 'INR',
+          images: ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400'],
+          videos: [],
+          amenities: ['wifi', 'parking', 'catering'],
+          owner_id: 'fallback-owner',
+          status: 'approved',
+          verified: true,
+          rating: 4.8,
+          review_count: 15,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          approval_status: 'approved' as const,
+          is_approved: true,
+          is_published: true,
+        }
+      ];
+      
+      setVenues(fallbackVenues);
+      setAvailableAmenities(['wifi', 'parking', 'ac', 'catering']);
     } finally {
       setLoading(false);
     }
@@ -529,8 +596,8 @@ const BrowseVenues: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  );
+        </div>
+      );
 
   const VenueCard: React.FC<{ venue: ExtendedVenue }> = ({ venue }) => {
     const images = venue.images || venue.image_urls || venue.photos || [];
@@ -545,7 +612,7 @@ const BrowseVenues: React.FC = () => {
           {images.length > 0 ? (
             <img
               src={images[0]}
-              alt={venue.name}
+            alt={venue.name}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -599,7 +666,7 @@ const BrowseVenues: React.FC = () => {
               {remainingCount > 0 && (
                 <span className="text-xs text-gray-500">
                   +{remainingCount} more amenities
-                </span>
+            </span>
               )}
             </div>
           )}
@@ -615,7 +682,7 @@ const BrowseVenues: React.FC = () => {
 
         <CardFooter className="pt-0">
           <div className="flex gap-2 w-full">
-            <Button 
+            <Button
               variant="outline" 
               className="flex-1"
               onClick={() => handleViewDetails(venue.id)}
@@ -633,9 +700,9 @@ const BrowseVenues: React.FC = () => {
       </Card>
     );
   };
-
+  
   if (loading) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -648,7 +715,7 @@ const BrowseVenues: React.FC = () => {
             ))}
           </div>
         </div>
-      </div>
+          </div>
     );
   }
 
@@ -660,7 +727,7 @@ const BrowseVenues: React.FC = () => {
           <p className="text-gray-600 mb-4">{error}</p>
           <Button onClick={fetchVenues}>Try Again</Button>
         </div>
-      </div>
+          </div>
     );
   }
 
@@ -692,7 +759,7 @@ const BrowseVenues: React.FC = () => {
           <div className="w-80 flex-shrink-0">
             <div className="sticky top-8">
               <FilterSection />
-            </div>
+              </div>
           </div>
 
           {/* Right Column - Venue Grid */}
@@ -709,14 +776,14 @@ const BrowseVenues: React.FC = () => {
                 <Button onClick={resetFilters} variant="outline">
                   Reset Filters
                 </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredVenues.map((venue) => (
-                  <VenueCard key={venue.id} venue={venue} />
-                ))}
-              </div>
-            )}
+        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredVenues.map((venue) => (
+              <VenueCard key={venue.id} venue={venue} />
+            ))}
+          </div>
+        )}
           </div>
         </div>
       </div>
@@ -724,4 +791,4 @@ const BrowseVenues: React.FC = () => {
   );
 };
 
-export default BrowseVenues; 
+export default BrowseVenues;

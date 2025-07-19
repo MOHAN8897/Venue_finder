@@ -16,6 +16,9 @@ export default defineConfig({
   server: {
     port: 5173,       // Always use port 5173
     strictPort: true, // Fail if port is busy (no auto-switching)
+    host: '0.0.0.0',  // Allow all hosts
+    allowedHosts: true, // Allow all hosts
+    cors: true,       // Enable CORS
   },
   build: {
     sourcemap: true,

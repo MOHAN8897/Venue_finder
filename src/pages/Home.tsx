@@ -20,7 +20,42 @@ const Home: React.FC = () => {
         setFeaturedVenues(venues);
       } catch (err) {
         console.error('Error fetching featured venues:', err);
-        setError('Failed to load featured venues');
+        setError('Unable to load featured venues. Please check your internet connection.');
+        
+        // Set fallback venues for better UX
+        const fallbackVenues = [
+          {
+            id: 'fallback-1',
+            name: 'Sample Cricket Ground',
+            type: 'Cricket Ground',
+            description: 'A beautiful cricket ground with modern facilities',
+            address: 'Sample Address, City',
+            city: 'Sample City',
+            state: 'Sample State',
+            pincode: '123456',
+            capacity: 100,
+            area: '5000 sq ft',
+            hourly_rate: 500,
+            daily_rate: 5000,
+            price_per_hour: 500,
+            price_per_day: 5000,
+            currency: 'INR',
+            images: ['https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400'],
+            videos: [],
+            amenities: ['wifi', 'parking', 'ac'],
+            owner_id: 'fallback-owner',
+            status: 'approved',
+            verified: true,
+            rating: 4.5,
+            review_count: 10,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            approval_status: 'approved' as const,
+            is_approved: true,
+            is_published: true,
+          }
+        ];
+        setFeaturedVenues(fallbackVenues);
       } finally {
         setLoading(false);
       }

@@ -116,7 +116,7 @@ const BookingConfirmationPage: React.FC = () => {
           <p className="text-gray-600">The booking you're looking for doesn't exist.</p>
                       <Link to="/list-venue">
               <Button className="mt-4">List Your Venue</Button>
-            </Link>
+          </Link>
         </div>
       </div>
     );
