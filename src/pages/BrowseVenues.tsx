@@ -641,8 +641,8 @@ const BrowseVenues: React.FC = () => {
     return (
       <Card className="group overflow-hidden hover:shadow-md transition-all duration-200">
         <div className="flex">
-          {/* Image - Optimized for mobile with better aspect ratio */}
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-l-lg overflow-hidden bg-gray-100">
+          {/* Image - 16:9 aspect ratio container for better image display */}
+          <div className="relative w-32 h-18 sm:w-40 sm:h-22.5 flex-shrink-0 rounded-l-lg overflow-hidden bg-gray-100">
             {images.length > 0 ? (
               <img
                 src={images[0]}
@@ -679,7 +679,7 @@ const BrowseVenues: React.FC = () => {
           </div>
 
           {/* Content - Compact */}
-          <div className="flex-1 p-2 sm:p-3 flex flex-col justify-between">
+          <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between">
             <div>
               {/* Venue Name */}
               <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-1 mb-1">
@@ -721,18 +721,18 @@ const BrowseVenues: React.FC = () => {
                 </div>
                 <div className="text-xs text-gray-500">per day</div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <Button
                   variant="outline" 
                   size="sm"
-                  className="text-xs h-7 px-2"
+                  className="text-xs h-8 px-3"
                   onClick={() => handleViewDetails(venue.id)}
                 >
                   View
                 </Button>
                 <Button 
                   size="sm"
-                  className="text-xs h-7 px-2"
+                  className="text-xs h-8 px-3"
                   onClick={() => handleBookNow(venue.id)}
                 >
                   Book
@@ -755,7 +755,7 @@ const BrowseVenues: React.FC = () => {
     return (
       <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]">
         {/* Image */}
-        <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+        <div className="relative aspect-video overflow-hidden bg-gray-100">
           {images.length > 0 ? (
             <img
               src={images[0]}
