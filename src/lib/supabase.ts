@@ -3,8 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Check if environment variables are available
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables:', {
+    VITE_SUPABASE_URL: supabaseUrl ? 'Set' : 'Missing',
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'Set' : 'Missing'
+  });
+}
+
 // Supabase client: persistSession and autoRefreshToken ensure sessions are kept across reloads and refreshed automatically for all user roles.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -24,7 +32,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           });
         }
       }
-      headers['apikey'] = supabaseAnonKey;
+      headers['apikey'] = supabaseAnonKey || '';
       if (tabId) {
         headers['tab-id'] = tabId;
       }
