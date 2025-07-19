@@ -103,6 +103,7 @@ const ManageYourPageCalendar = lazy(() => import('./pages/cricket-dashboard/Cale
 const ManageYourPageAnalytics = lazy(() => import('./pages/cricket-dashboard/AnalyticsPage'));
 const ManageYourPageSettings = lazy(() => import('./pages/cricket-dashboard/SettingsPage'));
 const BrowseVenues = lazy(() => import('./pages/BrowseVenues'));
+const VenueCardDemo = lazy(() => import('./pages/VenueCardDemo'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -170,6 +171,7 @@ const AppWithTabOverlay: React.FC = () => {
             {/* Public Routes with Main Layout */}
             <Route path="/" element={<MainLayout><Home /></MainLayout>} />
             <Route path="/venues" element={<MainLayout><BrowseVenues /></MainLayout>} />
+            <Route path="/venue-card-demo" element={<MainLayout><VenueCardDemo /></MainLayout>} />
 
             <Route path="/venue/:id" element={<MainLayout><VenueDetail /></MainLayout>} />
             <Route path="/book/:id" element={<MainLayout><VenueBooking /></MainLayout>} />
