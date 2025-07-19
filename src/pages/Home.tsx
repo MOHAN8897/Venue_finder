@@ -183,6 +183,7 @@ const Home: React.FC = () => {
               <span>View All</span>
               <ArrowRight className="h-5 w-5" />
             </Link>
+
           </div>
 
           {loading ? (
@@ -207,12 +208,13 @@ const Home: React.FC = () => {
                   to={`/venue/${venue.id}`}
                   className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
                 >
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9' }}>
                     <img
                       src={venue.images && venue.images.length > 0 ? venue.images[0] : 'https://via.placeholder.com/400x300?text=No+Image'}
                       alt={venue.name}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      style={{ objectPosition: 'center' }}
                     />
                     <div className="absolute top-4 right-4 bg-white rounded-full px-3 py-1 flex items-center space-x-1">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

@@ -33,6 +33,21 @@ const VenueMediaManager: React.FC = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
+  // Remove image
+  const removeImage = (id: string) => {
+    setImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  // Remove video
+  const removeVideo = (id: string) => {
+    setVideos(prev => prev.filter(vid => vid.id !== id));
+  };
+
+  // Set cover image
+  const setCoverImage = (id: string) => {
+    setImages(prev => prev.map(img => ({ ...img, isCover: img.id === id })));
+  };
+
   const memoizedImages = useMemo(() => images, [images]);
   const memoizedVideos = useMemo(() => videos, [videos]);
   const memoizedRemoveImage = useCallback(removeImage, [images]);
@@ -86,21 +101,6 @@ const VenueMediaManager: React.FC = () => {
     setError(null);
   };
 
-  // Remove image
-  const removeImage = (id: string) => {
-    setImages(prev => prev.filter(img => img.id !== id));
-  };
-
-  // Remove video
-  const removeVideo = (id: string) => {
-    setVideos(prev => prev.filter(vid => vid.id !== id));
-  };
-
-  // Set cover image
-  const setCoverImage = (id: string) => {
-    setImages(prev => prev.map(img => ({ ...img, isCover: img.id === id })));
-  };
-
   // Drag-and-drop reordering
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -115,7 +115,7 @@ const VenueMediaManager: React.FC = () => {
 
   // Memoized Image Item
   const ImageItem = React.memo(({ img, removeImage, setCoverImage }: { img: MediaFile, removeImage: (id: string) => void, setCoverImage: (id: string) => void }) => (
-    <div className="relative group w-32 h-32">
+    <div className="relative group w-32 aspect-video">
       <img src={img.url} alt="venue" loading="lazy" className="w-full h-full object-cover rounded-lg border" />
       <Button size="icon" variant="ghost" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100" onClick={() => removeImage(img.id)}><Trash2 className="h-4 w-4" /></Button>
       <Button size="icon" variant={img.isCover ? 'default' : 'outline'} className="absolute bottom-1 left-1" onClick={() => setCoverImage(img.id)}><Star className={img.isCover ? 'text-yellow-400' : 'text-gray-400'} /></Button>
@@ -153,7 +153,7 @@ const VenueMediaManager: React.FC = () => {
               </SortableContext>
             </DndContext>
             {images.length < MAX_IMAGES && (
-              <div className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400" onClick={() => imageInputRef.current?.click()}>
+              <div className="w-32 aspect-video flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400" onClick={() => imageInputRef.current?.click()}>
                 <Camera className="h-8 w-8 text-gray-400 mb-2" />
                 <span className="text-sm text-gray-600">Add Image</span>
                 <input type="file" multiple accept="image/*" ref={imageInputRef} onChange={handleImageUpload} className="hidden" />

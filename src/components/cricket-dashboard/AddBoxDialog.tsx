@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { BasicInfoSection } from "./forms/BasicInfoSection";
 import { PricingSection } from "./forms/PricingSection";
 import { AmenitiesSection } from "./forms/AmenitiesSection";
-import { Box } from "@/pages/BoxesPage";
+import { Venue } from "@/pages/cricket-dashboard/VenuesPage";
 
-interface AddBoxDialogProps {
+interface AddVenueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddBox: (box: Omit<Box, "id" | "stats">) => void;
+  onAddVenue: (venue: Omit<Venue, "id" | "stats">) => void;
 }
 
-export function AddBoxDialog({ open, onOpenChange, onAddBox }: AddBoxDialogProps) {
+export function AddVenueDialog({ open, onOpenChange, onAddVenue }: AddVenueDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -30,7 +30,7 @@ export function AddBoxDialog({ open, onOpenChange, onAddBox }: AddBoxDialogProps
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newBox: Omit<Box, "id" | "stats"> = {
+    const newVenue: Omit<Venue, "id" | "stats"> = {
       name: formData.name,
       image: "/placeholder.svg",
       location: {
@@ -55,7 +55,7 @@ export function AddBoxDialog({ open, onOpenChange, onAddBox }: AddBoxDialogProps
       }
     };
 
-    onAddBox(newBox);
+    onAddVenue(newVenue);
     onOpenChange(false);
     setFormData({
       name: "",
@@ -87,7 +87,7 @@ export function AddBoxDialog({ open, onOpenChange, onAddBox }: AddBoxDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Cricket Box</DialogTitle>
+          <DialogTitle>Add New Cricket Venue</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -112,7 +112,7 @@ export function AddBoxDialog({ open, onOpenChange, onAddBox }: AddBoxDialogProps
               Cancel
             </Button>
             <Button type="submit" className="flex-1 bg-gradient-accent hover:bg-accent/90">
-              Add Box
+              Add Venue
             </Button>
           </div>
         </form>

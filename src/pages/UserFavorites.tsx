@@ -21,13 +21,14 @@ const FavoriteCard = React.memo(({ favorite, handleRemoveFavorite }: { favorite:
     className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
   >
     {/* Venue Image */}
-    <div className="relative h-48 bg-gray-200">
+    <div className="relative w-full overflow-hidden bg-gray-200" style={{ aspectRatio: '16/9' }}>
       {favorite.venue?.image_urls?.[0] ? (
         <img
           src={favorite.venue.image_urls[0]}
           alt={favorite.venue.name}
           loading="lazy"
           className="w-full h-full object-cover"
+          style={{ objectPosition: 'center' }}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
@@ -73,6 +74,23 @@ const UserFavorites: React.FC = () => {
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
 
+  const handleRemoveFavorite = async (venueId: string) => {
+    try {
+      setLoading(true);
+      const result = await favoritesService.removeFromFavorites(venueId);
+      if (result.success) {
+        setFavorites(prev => prev.filter(fav => fav.venue_id !== venueId));
+      } else {
+        setError(result.error || 'Failed to remove from favorites');
+      }
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+      setError('Failed to remove from favorites');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const memoizedFavorites = useMemo(() => favorites, [favorites]);
   const memoizedHandleRemoveFavorite = useCallback(handleRemoveFavorite, [favorites]);
 
@@ -113,23 +131,6 @@ const UserFavorites: React.FC = () => {
     await refreshConnection();
     if (isConnected) {
       await loadFavorites();
-    }
-  };
-
-  const handleRemoveFavorite = async (venueId: string) => {
-    try {
-      setLoading(true);
-      const result = await favoritesService.removeFromFavorites(venueId);
-      if (result.success) {
-        setFavorites(prev => prev.filter(fav => fav.venue_id !== venueId));
-      } else {
-        setError(result.error || 'Failed to remove from favorites');
-      }
-    } catch (err) {
-      console.error('Error removing favorite:', err);
-      setError('Failed to remove from favorites');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -198,11 +199,11 @@ const UserFavorites: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-2">No favorites yet</h3>
                   <p className="text-gray-600 mb-6">Start exploring venues and add them to your favorites!</p>
             <Link
-              to="/venues"
+                              to="/list-venue"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
                     <MapPin className="h-4 w-4 mr-2" />
-              Browse Venues
+              List Your Venue
             </Link>
           </div>
         ) : (

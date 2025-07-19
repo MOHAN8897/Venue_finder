@@ -13,7 +13,6 @@ const Header: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading, version } = useAuth();
-  console.log('[Header] Render:', { user, authLoading, version });
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const [hasApprovedVenue, setHasApprovedVenue] = useState(false);
   const [wasUserPresent, setWasUserPresent] = useState(false);
@@ -110,7 +109,6 @@ const Header: React.FC = () => {
 
   // Debug log for auth state (moved to useEffect)
   useEffect(() => {
-    console.log('Header Auth State - user:', user, 'loading:', authLoading);
     if (!authLoading && (!user || !user.email)) {
       console.warn('[Header] User object is missing or incomplete:', user);
     }
@@ -150,6 +148,7 @@ const Header: React.FC = () => {
             >
               Browse Venues
             </Link>
+
           </nav>
 
           {/* Auth Section */}
@@ -170,7 +169,6 @@ const Header: React.FC = () => {
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(!isProfileMenuOpen);
-                      console.log('Profile menu toggled:', !isProfileMenuOpen);
                     }}
                     className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg"
                   >
@@ -337,6 +335,7 @@ const Header: React.FC = () => {
               >
                 Browse Venues
               </Link>
+
               <Link 
                 id="mobile-nav-list-venue"
                 to="/list-venue" 

@@ -13,10 +13,14 @@ import { TooltipProvider } from '@/components/cricket-dashboard/tooltip';
 import { Toaster as DashboardToaster } from '@/components/cricket-dashboard/toaster';
 import { Toaster as Sonner } from '@/components/cricket-dashboard/sonner';
 
+
 // Pages (lazy loaded)
 const Home = lazy(() => import('./pages/Home'));
 const VenueList = lazy(() => import('./pages/VenueList'));
 const VenueDetail = lazy(() => import('./pages/VenueDetail'));
+const VenueBooking = lazy(() => import('./pages/VenueBooking'));
+const BookingConfirmation = lazy(() => import('./pages/BookingConfirmation'));
+const VenueTest = lazy(() => import('./pages/VenueTest'));
 const Unauthorized = lazy(() => import('./pages/Unauthorized'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const ListVenue = lazy(() => import('./pages/ListVenue'));
@@ -42,10 +46,11 @@ const SuperAdminDashboardIndex = lazy(() => import('./pages/super-admin/Index'))
 const SuperAdminNotFound = lazy(() => import('./pages/super-admin/NotFound'));
 const SuperAdminLogin = lazy(() => import('./pages/super-admin/Login'));
 const ManageYourPageDashboard = lazy(() => import('./pages/cricket-dashboard/Index'));
-const ManageYourPageBoxes = lazy(() => import('./pages/cricket-dashboard/BoxesPage'));
+const ManageYourPageVenues = lazy(() => import('./pages/cricket-dashboard/VenuesPage'));
 const ManageYourPageCalendar = lazy(() => import('./pages/cricket-dashboard/CalendarPage'));
 const ManageYourPageAnalytics = lazy(() => import('./pages/cricket-dashboard/AnalyticsPage'));
 const ManageYourPageSettings = lazy(() => import('./pages/cricket-dashboard/SettingsPage'));
+const BrowseVenues = lazy(() => import('./pages/BrowseVenues'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -109,8 +114,12 @@ const AppWithTabOverlay: React.FC = () => {
 
             {/* Public Routes with Main Layout */}
             <Route path="/" element={<MainLayout><Home /></MainLayout>} />
-            <Route path="/venues" element={<MainLayout><VenueList /></MainLayout>} />
+            <Route path="/venues" element={<MainLayout><BrowseVenues /></MainLayout>} />
+
             <Route path="/venue/:id" element={<MainLayout><VenueDetail /></MainLayout>} />
+            <Route path="/book/:id" element={<MainLayout><VenueBooking /></MainLayout>} />
+            <Route path="/booking-confirmation/:bookingId" element={<MainLayout><BookingConfirmation /></MainLayout>} />
+            <Route path="/venue-test" element={<MainLayout><VenueTest /></MainLayout>} />
             <Route path="/unauthorized" element={<MainLayout><Unauthorized /></MainLayout>} />
             <Route path="/list-venue" element={<MainLayout><ListVenue /></MainLayout>} />
             <Route path="/signin" element={<MainLayout><SignIn /></MainLayout>} />
@@ -175,10 +184,11 @@ const AppWithTabOverlay: React.FC = () => {
 
             {/* Manage Your Venue Dashboard Routes (unique) */}
             <Route path="/manageyourpage-dashboard" element={<MainLayout><ManageYourPageDashboard /></MainLayout>} />
-            <Route path="/manageyourpage-boxes" element={<MainLayout><ManageYourPageBoxes /></MainLayout>} />
+            <Route path="/manageyourpage-venues" element={<MainLayout><ManageYourPageVenues /></MainLayout>} />
             <Route path="/manageyourpage-calendar" element={<MainLayout><ManageYourPageCalendar /></MainLayout>} />
             <Route path="/manageyourpage-analytics" element={<MainLayout><ManageYourPageAnalytics /></MainLayout>} />
             <Route path="/manageyourpage-settings" element={<MainLayout><ManageYourPageSettings /></MainLayout>} />
+            <Route path="/manageyourpage-boxes" element={<Navigate to="/manageyourpage-venues" replace />} />
 
             {/* Redirect old cricket-dashboard routes to new manageyourpage-dashboard */}
             <Route path="/cricket-dashboard" element={<Navigate to="/manageyourpage-dashboard" replace />} />

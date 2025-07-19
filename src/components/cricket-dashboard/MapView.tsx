@@ -4,14 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Navigation } from "lucide-react";
-import { Box } from "@/pages/BoxesPage";
+import { Venue } from "@/pages/cricket-dashboard/VenuesPage";
 
 interface MapViewProps {
-  boxes: Box[];
-  onBoxSelect: (box: Box) => void;
+  venues: Venue[];
+  onVenueSelect: (venue: Venue) => void;
 }
 
-export function MapView({ boxes, onBoxSelect }: MapViewProps) {
+export function MapView({ venues, onVenueSelect }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [mapboxToken, setMapboxToken] = useState('');
   const [showTokenInput, setShowTokenInput] = useState(true);
@@ -33,25 +33,25 @@ export function MapView({ boxes, onBoxSelect }: MapViewProps) {
         zoom: 12,
       });
 
-      // Add markers for each box
-      boxes.forEach((box) => {
+      // Add markers for each venue
+      venues.forEach((venue) => {
         const marker = new mapboxgl.default.Marker({
           color: '#2E8B57' // Primary green color
         })
-          .setLngLat([box.location.lng, box.location.lat])
+          .setLngLat([venue.location.lng, venue.location.lat])
           .setPopup(
             new mapboxgl.default.Popup({ offset: 25 }).setHTML(`
               <div class="p-2">
-                <h3 class="font-semibold">${box.name}</h3>
-                <p class="text-sm text-gray-600">${box.location.address}</p>
-                <p class="text-sm font-medium">₹${box.pricing.hourlyRate}/hr</p>
+                <h3 class="font-semibold">${venue.name}</h3>
+                <p class="text-sm text-gray-600">${venue.location.address}</p>
+                <p class="text-sm font-medium">₹${venue.pricing.hourlyRate}/hr</p>
               </div>
             `)
           )
           .addTo(mapInstance);
 
         marker.getElement().addEventListener('click', () => {
-          onBoxSelect(box);
+          onVenueSelect(venue);
         });
       });
 
@@ -77,7 +77,7 @@ export function MapView({ boxes, onBoxSelect }: MapViewProps) {
               <MapPin className="h-12 w-12 text-primary mx-auto" />
               <h3 className="text-lg font-semibold">Map Integration</h3>
               <p className="text-sm text-muted-foreground">
-                Enter your Mapbox public token to view your boxes on the map.
+                Enter your Mapbox public token to view your venues on the map.
                 Get your token from{' '}
                 <a 
                   href="https://mapbox.com/" 

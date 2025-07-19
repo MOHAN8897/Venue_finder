@@ -71,24 +71,7 @@ export default function ReviewStep({ formData }: ReviewStepProps) {
         </CardContent>
       </Card>
 
-      {/* Location */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Location Map</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {formData.mapEmbedCode && /^<iframe[\s\S]*<\/iframe>$/.test(formData.mapEmbedCode.trim()) ? (
-            <div className="mb-4">
-              <div className="text-sm text-muted-foreground mb-2">Google Maps Embed:</div>
-              <div className="rounded-lg overflow-hidden border shadow" dangerouslySetInnerHTML={{ __html: formData.mapEmbedCode }} />
-            </div>
-          ) : formData.mapEmbedCode ? (
-            <div className="text-sm text-red-600">Invalid embed code. Please paste a valid Google Maps {'<iframe>'} embed code.</div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No map embed code provided.</p>
-          )}
-        </CardContent>
-      </Card>
+
 
       {/* Specifications */}
       <Card>
@@ -138,12 +121,13 @@ export default function ReviewStep({ formData }: ReviewStepProps) {
               {formData.photos.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {formData.photos.map((photo: File, index: number) => (
-                    <img
-                      key={index}
-                      src={URL.createObjectURL(photo)}
-                      alt={`Venue photo ${index + 1}`}
-                      className="w-full h-24 object-cover rounded border"
-                    />
+                    <div key={index} className="aspect-video w-full rounded border overflow-hidden">
+                      <img
+                        src={URL.createObjectURL(photo)}
+                        alt={`Venue photo ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   ))}
                 </div>
               ) : (

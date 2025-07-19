@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Check, User, Calendar, Eye, X } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 
 // Use the mapped Venue type from VenueTable
 // type Venue = ... (copy from VenueTable)
@@ -33,23 +35,54 @@ type Venue = {
   price_per_hour?: string;
   price_per_day?: string;
   map_embed_code?: string;
+  videos?: string[]; // Added videos field
+  featured_image?: string; // Added featured_image field
   // Add any other fields needed
 };
 
 interface VenueDetailsModalProps {
-  venue: Venue;
+  venue: any; // Accepts both admin and owner dashboard Venue types
   isOpen: boolean;
   onClose: () => void;
-  onAction: (venueId: string, action: 'approve' | 'reject', reason?: string) => void;
+  onAction?: (venueId: string, action: 'approve' | 'reject', reason?: string) => void;
 }
 
 export function VenueDetailsModal({ venue, isOpen, onClose, onAction }: VenueDetailsModalProps) {
+  // Map owner dashboard Venue to expected fields if needed
+  const mappedVenue = {
+    id: venue.id,
+    name: venue.name,
+    address: venue.address || venue.location || '',
+    description: venue.description || '',
+    capacity: venue.capacity || venue.stats?.capacity || '',
+    amenities: venue.amenities || [],
+    images: venue.images || venue.photos || [],
+    videos: venue.videos || [],
+    status: venue.status || 'pending',
+    price_per_hour: venue.price_per_hour || venue.pricing?.hourlyRate || venue.price || '',
+    price_per_day: venue.price_per_day || venue.pricing?.peakHourRate || '',
+    featured_image: venue.featured_image || (venue.images && venue.images[0]) || (venue.photos && venue.photos[0]) || '',
+    map_embed_code: venue.map_embed_code || '',
+    ownerName: venue.ownerName || venue.owner_name || venue.company || '',
+    ownerEmail: venue.ownerEmail || venue.email || '',
+    rejectionReason: venue.rejectionReason || venue.rejection_reason || '',
+    submittedAt: venue.submittedAt || venue.created_at || '',
+    venue_type: venue.venue_type || venue.type || '',
+    company: venue.company || '',
+    contact_number: venue.contact_number || '',
+    price: venue.price || venue.price_per_hour || venue.pricing?.hourlyRate || '',
+    pricing: venue.pricing || { hourlyRate: venue.price_per_hour || venue.price || '', peakHourRate: venue.price_per_day || '' },
+    weekly_availability: venue.weekly_availability || venue.weeklyAvailability || {},
+  };
   const [rejectionReason, setRejectionReason] = useState('');
-  const [showImage, setShowImage] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const allImages = mappedVenue.images || [];
+  const featuredImage = mappedVenue.featured_image || (allImages[0] || '');
   const [isRejecting, setIsRejecting] = useState(false);
 
   const handleApprove = () => {
-    onAction(venue.id, 'approve');
+    onAction?.(mappedVenue.id, 'approve');
     onClose();
   };
 
@@ -58,7 +91,7 @@ export function VenueDetailsModal({ venue, isOpen, onClose, onAction }: VenueDet
       setIsRejecting(true);
       return;
     }
-    onAction(venue.id, 'reject', rejectionReason);
+    onAction?.(mappedVenue.id, 'reject', rejectionReason);
     onClose();
   };
 
@@ -94,158 +127,300 @@ export function VenueDetailsModal({ venue, isOpen, onClose, onAction }: VenueDet
     return `https://uledqmfntmblwreoaksi.supabase.co/storage/v1/object/public/venue-images/${img}`;
   };
 
+  // Map videos correctly
+  const allVideos = mappedVenue.videos || [];
+
+  // Add a helper for status badge color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-500 text-white';
+      case 'maintenance':
+        return 'bg-yellow-400 text-black';
+      case 'inactive':
+        return 'bg-red-500 text-white';
+      default:
+        return 'bg-muted text-muted-foreground';
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>{venue.name}</span>
-            <Badge {...getStatusBadge(venue.status)}>
-              {venue.status}
+            <span>{mappedVenue.name}</span>
+            <Badge {...getStatusBadge(mappedVenue.status)}>
+              {mappedVenue.status}
             </Badge>
           </DialogTitle>
         </DialogHeader>
-
-        {/* Image Viewer Modal */}
-        {showImage && (
-          <Dialog open={!!showImage} onOpenChange={() => setShowImage(null)}>
-            <DialogContent className="max-w-2xl">
-              <img src={showImage} alt="Venue" className="w-full h-auto rounded-lg" />
-              <Button variant="outline" className="mt-4" onClick={() => setShowImage(null)}>
-                <X className="mr-2 h-4 w-4" /> Close
-              </Button>
-            </DialogContent>
-          </Dialog>
-        )}
-
         <div className="space-y-6">
-          {/* Venue Images */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {venue.images.map((image, index) => (
-              <div key={index} className="aspect-video bg-muted rounded-lg overflow-hidden cursor-pointer" onClick={() => setShowImage(getImageUrl(image))}>
+          {/* Featured Image Banner at Top */}
+          {featuredImage && (
+            <div className="relative w-full mb-6">
+              <div className="w-full overflow-hidden rounded-t-lg shadow-lg" style={{ aspectRatio: '16/9' }}>
                 <img
-                  src={getImageUrl(image)}
-                  alt={`${venue.name} ${index + 1}`}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform"
+                  src={getImageUrl(featuredImage)}
+                  alt={mappedVenue.name}
+                  className="w-full h-full object-cover"
+                  style={{ objectPosition: 'center' }}
                 />
               </div>
-            ))}
-          </div>
+              <span className="absolute top-4 left-4 bg-yellow-400 text-white px-3 py-1 rounded text-xs font-semibold shadow">Featured</span>
+              {/* Status badge overlayed on image */}
+              <span className={`absolute top-4 right-4 px-3 py-1 rounded text-xs font-semibold shadow ${getStatusColor(mappedVenue.status)}`}>
+                {mappedVenue.status}
+              </span>
+            </div>
+          )}
 
-          {/* Venue Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <span className="font-semibold">Type:</span> {venue.venue_type || '-'}
+          {/* Venue Name and Status */}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                {mappedVenue.name}
+              </CardTitle>
+              <CardDescription>{mappedVenue.address}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Remove the small featured image from the info card */}
               </div>
-              <div>
-                <span className="font-semibold">Description:</span>
-                <div className="whitespace-pre-wrap text-muted-foreground mt-1 break-words max-h-64 overflow-y-auto border rounded p-2 bg-muted/30" style={{maxHeight:'300px'}}>
-                  {venue.description?.slice(0, 1000)}
-                  {venue.description && venue.description.length > 1000 && <span className="text-xs text-muted-foreground">... (truncated)</span>}
-                </div>
-              </div>
-              <div>
-                <span className="font-semibold">Location:</span> {venue.location}
-              </div>
-              <div>
-                <span className="font-semibold">Address:</span> {venue.address || '-'}
-              </div>
-              <div>
-                <span className="font-semibold">Company:</span> {venue.company || '-'}
-              </div>
-              <div>
-                <span className="font-semibold">Contact Number:</span> {venue.contact_number || '-'}
-              </div>
-              <div>
-                <span className="font-semibold">Capacity:</span> {venue.capacity}
-              </div>
-              <div>
-                <span className="font-semibold">Amenities:</span>
+            </CardContent>
+          </Card>
+
+          {mappedVenue.address && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Address</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base">{mappedVenue.address}</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {mappedVenue.capacity && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Capacity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base">{mappedVenue.capacity}</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {mappedVenue.description && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base whitespace-pre-line">{mappedVenue.description}</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Amenities with count */}
+          {mappedVenue.amenities && mappedVenue.amenities.length > 0 && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Selected Amenities ({mappedVenue.amenities.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {venue.amenities.map((amenity) => (
+                  {mappedVenue.amenities.map((amenity: string) => (
                     <Badge key={amenity} variant="outline" className="text-xs">
                       {amenity}
                     </Badge>
                   ))}
                 </div>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <span className="font-semibold">Price/Hour:</span> {formatPrice(venue.price_per_hour)}
-              </div>
-              <div>
-                <span className="font-semibold">Price/Day:</span> {formatPrice(venue.price_per_day)}
-              </div>
-              <div>
-                <span className="font-semibold">Owner:</span> {venue.ownerName}
-              </div>
-              <div>
-                <span className="font-semibold">Owner Email:</span> {venue.ownerEmail}
-              </div>
-              <div>
-                <span className="font-semibold">Submitted:</span> {formatDate(venue.submittedAt)}
-              </div>
-              <div>
-                <span className="font-semibold">Status:</span> {venue.status}
-              </div>
-              {venue.map_embed_code && (
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pricing */}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>Pricing</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-8">
                 <div>
-                  <span className="font-semibold">Map:</span>
-                  <div className="mt-2" dangerouslySetInnerHTML={{ __html: venue.map_embed_code }} />
+                  <div className="font-medium">₹{mappedVenue.pricing?.hourlyRate || mappedVenue.price_per_hour || 'N/A'}/hr</div>
+                  <div className="text-xs text-muted-foreground">Regular</div>
+                </div>
+                <div>
+                  <div className="font-medium">₹{mappedVenue.pricing?.peakHourRate || mappedVenue.price_per_day || 'N/A'}/day</div>
+                  <div className="text-xs text-muted-foreground">Peak</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Photos with featured badge */}
+          {allImages.length > 0 && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Venue Photos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {allImages.map((img: string, idx: number) => (
+                    <div key={img} className="relative flex-shrink-0">
+                      <div className="w-64 overflow-hidden rounded-lg" style={{ aspectRatio: '16/9' }}>
+                        <img
+                          src={getImageUrl(img)}
+                          alt={mappedVenue.name}
+                          className="w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-200"
+                          style={{ objectPosition: 'center' }}
+                          onClick={() => {
+                            setGalleryIndex(idx);
+                            setGalleryOpen(true);
+                          }}
+                        />
+                      </div>
+                      {img === featuredImage && (
+                        <span className="absolute top-2 left-2 bg-yellow-400 text-white px-2 py-1 rounded text-xs font-semibold shadow">Featured</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Videos as buttons and URLs */}
+          {allVideos.length > 0 && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Video URLs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {allVideos.map((video: string, idx: number) => (
+                    <a
+                      key={video}
+                      href={video}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block"
+                    >
+                      <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/80 transition">
+                        View Video {idx + 1}
+                      </button>
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Map Embed and raw code */}
+          {mappedVenue.map_embed_code && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Map Embed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="aspect-video w-full mb-2">
+                  <iframe
+                    srcDoc={mappedVenue.map_embed_code}
+                    title="Venue Map"
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Weekly Availability */}
+          {mappedVenue.weekly_availability && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Weekly Availability</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {Object.entries(mappedVenue.weekly_availability).map(([day, val]: [string, any]) => (
+                    <div key={day} className="text-xs">
+                      <span className="font-semibold capitalize">{day}:</span> {val.available ? `${val.start} - ${val.end}` : 'Unavailable'}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Venue Type and Contact Number if present */}
+          {(mappedVenue.venue_type || mappedVenue.contact_number) && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Venue Info</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {mappedVenue.venue_type && (
+                  <div className="text-sm mb-1">Type: <span className="font-semibold">{mappedVenue.venue_type}</span></div>
+                )}
+                {mappedVenue.contact_number && (
+                  <div className="text-sm">Contact: <span className="font-semibold">{mappedVenue.contact_number}</span></div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {/* Image Gallery Modal */}
+          <Dialog open={galleryOpen} onOpenChange={setGalleryOpen}>
+            <DialogContent className="max-w-2xl flex flex-col items-center">
+              {allImages.length > 0 && (
+                <div className="relative w-full flex flex-col items-center">
+                  <img
+                    src={getImageUrl(allImages[galleryIndex])}
+                    alt={`Venue photo ${galleryIndex + 1}`}
+                    className="w-full max-h-[70vh] object-contain rounded-lg"
+                  />
+                  <div className="absolute top-1/2 left-0 transform -translate-y-1/2">
+                    <button
+                      onClick={() => setGalleryIndex((galleryIndex - 1 + allImages.length) % allImages.length)}
+                      className="bg-white/80 hover:bg-white text-black rounded-full p-2 shadow"
+                      disabled={allImages.length <= 1}
+                    >
+                      &#8592;
+                    </button>
+                  </div>
+                  <div className="absolute top-1/2 right-0 transform -translate-y-1/2">
+                    <button
+                      onClick={() => setGalleryIndex((galleryIndex + 1) % allImages.length)}
+                      className="bg-white/80 hover:bg-white text-black rounded-full p-2 shadow"
+                      disabled={allImages.length <= 1}
+                    >
+                      &#8594;
+                    </button>
+                  </div>
+                  <div className="absolute top-2 right-2">
+                    <button
+                      onClick={() => setGalleryOpen(false)}
+                      className="bg-black/70 hover:bg-black text-white rounded-full p-2"
+                    >
+                      &#10005;
+                    </button>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {galleryIndex + 1} / {allImages.length}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Rejection Reason (if rejected) */}
-          {venue.status === 'rejected' && venue.rejectionReason && (
-            <div className="space-y-2">
-              <span className="font-semibold text-destructive">Rejection Reason:</span>
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <p className="text-sm text-foreground">{venue.rejectionReason}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Rejection Reason Input (if rejecting) */}
-          {venue.status === 'pending' && (
-            <div className="space-y-2">
-              <span className="font-semibold">Rejection Reason (required to reject):</span>
-              <input
-                type="text"
-                value={rejectionReason}
-                onChange={e => setRejectionReason(e.target.value)}
-                className="w-full border rounded p-2"
-                placeholder="Enter reason for rejection"
-                required
-              />
-              {isRejecting && !rejectionReason.trim() && (
-                <span className="text-destructive text-xs">Rejection reason is required.</span>
-              )}
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Actions */}
-          <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-            {venue.status === 'pending' && (
-              <>
-                <Button variant="default" onClick={handleApprove}>
-                  <Check className="mr-2 h-4 w-4" /> Approve
-                </Button>
-                <Button variant="destructive" onClick={handleReject}>
-                  Reject
-                </Button>
-              </>
-            )}
-          </div>
+            </DialogContent>
+          </Dialog>
         </div>
+        {/* Remove status badge from top right, next to venue name, and at the bottom.
+            Only keep the badge overlayed on the featured image: */}
+        {/* <div className="flex items-center justify-end gap-2 mt-4">
+          <span className="text-sm font-bold">Status:</span>
+          <Badge variant="outline" className={`text-base ${getStatusColor(mappedVenue.status)}`}>{mappedVenue.status}</Badge>
+        </div> */}
       </DialogContent>
     </Dialog>
   );

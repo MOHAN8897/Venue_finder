@@ -4,11 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Navigation } from "lucide-react";
-import { Box } from "@/pages/BoxesPage";
+import { Venue } from "@/pages/cricket-dashboard/VenuesPage";
 
 interface GoogleMapViewProps {
-  boxes: Box[];
-  onBoxSelect: (box: Box) => void;
+  venues: Venue[];
+  onVenueSelect: (venue: Venue) => void;
 }
 
 declare global {
@@ -18,7 +18,7 @@ declare global {
   }
 }
 
-export function GoogleMapView({ boxes, onBoxSelect }: GoogleMapViewProps) {
+export function GoogleMapView({ venues, onVenueSelect }: GoogleMapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(true);
@@ -49,17 +49,17 @@ export function GoogleMapView({ boxes, onBoxSelect }: GoogleMapViewProps) {
         ]
       });
 
-      // Add markers for each box
-      boxes.forEach((box) => {
+      // Add markers for each venue
+      venues.forEach((venue) => {
         const marker = new window.google.maps.Marker({
-          position: { lat: box.location.lat, lng: box.location.lng },
+          position: { lat: venue.location.lat, lng: venue.location.lng },
           map: mapInstance,
-          title: box.name,
+          title: venue.name,
           icon: {
             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
               <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="16" cy="16" r="14" fill="#2E8B57" stroke="white" stroke-width="2"/>
-                <text x="16" y="20" text-anchor="middle" fill="white" font-size="12" font-weight="bold">B</text>
+                <text x="16" y="20" text-anchor="middle" fill="white" font-size="12" font-weight="bold">V</text>
               </svg>
             `),
             scaledSize: new window.google.maps.Size(32, 32)
@@ -69,16 +69,16 @@ export function GoogleMapView({ boxes, onBoxSelect }: GoogleMapViewProps) {
         const infoWindow = new window.google.maps.InfoWindow({
           content: `
             <div style="padding: 8px; min-width: 200px;">
-              <h3 style="margin: 0 0 8px 0; font-weight: bold;">${box.name}</h3>
-              <p style="margin: 0 0 4px 0; color: #666; font-size: 14px;">${box.location.address}</p>
-              <p style="margin: 0; font-weight: bold;">₹${box.pricing.hourlyRate}/hr</p>
+              <h3 style="margin: 0 0 8px 0; font-weight: bold;">${venue.name}</h3>
+              <p style="margin: 0 0 4px 0; color: #666; font-size: 14px;">${venue.location.address}</p>
+              <p style="margin: 0; font-weight: bold;">₹${venue.pricing.hourlyRate}/hr</p>
             </div>
           `
         });
 
         marker.addListener('click', () => {
           infoWindow.open(mapInstance, marker);
-          onBoxSelect(box);
+          onVenueSelect(venue);
         });
       });
 
@@ -110,7 +110,7 @@ export function GoogleMapView({ boxes, onBoxSelect }: GoogleMapViewProps) {
               <MapPin className="h-12 w-12 text-primary mx-auto" />
               <h3 className="text-lg font-semibold">Google Maps Integration</h3>
               <p className="text-sm text-muted-foreground">
-                Enter your Google Maps API key to view your boxes on the map.
+                Enter your Google Maps API key to view your venues on the map.
                 Get your API key from{' '}
                 <a 
                   href="https://console.cloud.google.com/apis/credentials" 

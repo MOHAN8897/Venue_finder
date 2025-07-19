@@ -60,7 +60,10 @@ export default function VenueListingForm() {
     email: '',
     ownerName: '',
   });
-  const updateFormData = (updates: Partial<VenueFormData>) => setFormData(prev => ({ ...prev, ...updates }));
+  const updateFormData = (updates: Partial<VenueFormData>) => {
+    setError(null); // Clear error on any field change
+    setFormData(prev => ({ ...prev, ...updates }));
+  };
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -324,14 +327,21 @@ export default function VenueListingForm() {
         <div>
           <DescriptionStep
             description={formData.description}
-            setDescription={description => updateFormData({ description })}
+            setDescription={description => { setError(null); updateFormData({ description }); }}
             isValid={!!formData.description.trim()}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(0)}>
+            <Button variant="outline" onClick={() => { setError(null); setStep(0); }}>
               Back
             </Button>
-            <Button onClick={() => setStep(2)} disabled={!formData.description.trim()}>
+            <Button onClick={() => {
+              if (!formData.description.trim()) {
+                setError('Please fill all required fields.');
+                return;
+              }
+              setError(null);
+              setStep(2);
+            }} disabled={!formData.description.trim()}>
               Next
             </Button>
           </div>
@@ -348,10 +358,17 @@ export default function VenueListingForm() {
             isValid={!!formData.capacity && !!formData.area}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(1)}>
+            <Button variant="outline" onClick={() => { setError(null); setStep(1); }}>
               Back
             </Button>
-            <Button onClick={() => setStep(3)} disabled={!formData.capacity || !formData.area}>
+            <Button onClick={() => {
+              if (!formData.capacity || !formData.area) {
+                setError('Please fill all required fields.');
+                return;
+              }
+              setError(null);
+              setStep(3);
+            }} disabled={!formData.capacity || !formData.area}>
               Next
             </Button>
           </div>
@@ -368,10 +385,17 @@ export default function VenueListingForm() {
             isValid={formData.photos.length > 0}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(2)}>
+            <Button variant="outline" onClick={() => { setError(null); setStep(2); }}>
               Back
             </Button>
-            <Button onClick={() => setStep(4)} disabled={formData.photos.length === 0}>
+            <Button onClick={() => {
+              if (formData.photos.length === 0) {
+                setError('Please upload at least one photo.');
+                return;
+              }
+              setError(null);
+              setStep(4);
+            }} disabled={formData.photos.length === 0}>
               Next
             </Button>
           </div>
@@ -388,10 +412,17 @@ export default function VenueListingForm() {
             isValid={!!formData.pricePerHour || !!formData.pricePerDay}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(3)}>
+            <Button variant="outline" onClick={() => { setError(null); setStep(3); }}>
               Back
             </Button>
-            <Button onClick={() => setStep(5)} disabled={!formData.pricePerHour && !formData.pricePerDay}>
+            <Button onClick={() => {
+              if (!formData.pricePerHour && !formData.pricePerDay) {
+                setError('Please enter a price per hour or per day.');
+                return;
+              }
+              setError(null);
+              setStep(5);
+            }} disabled={!formData.pricePerHour && !formData.pricePerDay}>
               Next
             </Button>
           </div>
@@ -408,10 +439,17 @@ export default function VenueListingForm() {
             isValid={!!formData.contactNumber && !!formData.email}
           />
           <div className="flex justify-between mt-6">
-            <Button variant="outline" onClick={() => setStep(4)}>
+            <Button variant="outline" onClick={() => { setError(null); setStep(4); }}>
               Back
             </Button>
-            <Button onClick={() => setStep(6)} disabled={!formData.contactNumber || !formData.email}>
+            <Button onClick={() => {
+              if (!formData.contactNumber || !formData.email) {
+                setError('Please fill all required fields.');
+                return;
+              }
+              setError(null);
+              setStep(6);
+            }} disabled={!formData.contactNumber || !formData.email}>
               Next
             </Button>
           </div>

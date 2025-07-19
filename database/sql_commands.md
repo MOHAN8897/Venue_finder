@@ -2214,3 +2214,83 @@ WHERE approval_status IN ('approved', 'rejected');
 All venues with approval_status 'approved' or 'rejected' now have venue_type = 'Sports Venue'.
 
 **Timestamp:** 2024-08-02
+
+## [2024-08-02] Subvenues/Spaces Schema Standardization
+
+**Purpose:** Remove confusion between sub_venues and subvenues. Use a single, clear table for all sub-venue/space data, with unique column names and proper RLS.
+
+```sql
+-- Drop old sub_venues table and dependencies
+DROP TABLE IF EXISTS public.sub_venues CASCADE;
+
+-- Create subvenues table with unique subvenue_* columns
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subvenue_status') THEN
+    CREATE TYPE subvenue_status AS ENUM ('active', 'inactive', 'maintenance');
+  END IF;
+END$$;
+
+CREATE TABLE IF NOT EXISTS public.subvenues (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  subvenue_name text NOT NULL,
+  subvenue_description text,
+  subvenue_features text[],
+  subvenue_images text[],
+  subvenue_videos text[],
+  subvenue_amenities text[],
+  subvenue_capacity integer,
+  subvenue_type text,
+  subvenue_status subvenue_status DEFAULT 'active',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subvenues_venue_id ON public.subvenues(venue_id);
+
+ALTER TABLE public.subvenues ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Venue owners can manage their subvenues" ON public.subvenues;
+CREATE POLICY "Venue owners can manage their subvenues" ON public.subvenues
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.venues v WHERE v.id = subvenues.venue_id AND v.owner_id = auth.uid()));
+```
+
+**Note:** All sub-venue/space management will use the `subvenues` table. All columns for sub-venue/space are prefixed with `subvenue_` for clarity. Old table and dependencies dropped with CASCADE. [2024-08-02]
+
+## [2024-08-02] Subvenues/Spaces Table Creation
+
+**Purpose:** Create a dedicated table for sub-venues/spaces, linked to the main venue by `venue_id`. All subvenue fields are included, with RLS and status enum.
+
+```sql
+-- Create subvenue_status enum if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subvenue_status') THEN
+    CREATE TYPE subvenue_status AS ENUM ('active', 'inactive', 'maintenance');
+  END IF;
+END$$;
+
+-- Create subvenues table
+CREATE TABLE IF NOT EXISTS public.subvenues (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES public.venues(id) ON DELETE CASCADE,
+  subvenue_name text NOT NULL,
+  subvenue_description text,
+  subvenue_features text[],
+  subvenue_images text[],
+  subvenue_videos text[],
+  subvenue_amenities text[],
+  subvenue_capacity integer,
+  subvenue_type text,
+  subvenue_status subvenue_status DEFAULT 'active',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subvenues_venue_id ON public.subvenues(venue_id);
+
+ALTER TABLE public.subvenues ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Venue owners can manage their subvenues" ON public.subvenues;
+CREATE POLICY "Venue owners can manage their subvenues" ON public.subvenues
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.venues v WHERE v.id = subvenues.venue_id AND v.owner_id = auth.uid()));
+```

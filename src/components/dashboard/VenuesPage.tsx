@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VenueTable } from './VenueTable';
 import { VenueDetailsModal } from './VenueDetailsModal';
+import { RejectionModal } from './RejectionModal';
 import { Search, Calendar as CalendarIcon, Check, Eye, Filter as FilterIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { createClient } from '@supabase/supabase-js';
@@ -90,6 +91,8 @@ export function VenuesPage() {
   const [toDate, setToDate] = useState<Date | undefined>();
   const [filterActive, setFilterActive] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [venueToReject, setVenueToReject] = useState<VenueDB | null>(null);
 
   useEffect(() => {
     const fetchVenues = async () => {
@@ -164,27 +167,67 @@ export function VenuesPage() {
 
   // Approve/Reject logic
   const handleVenueAction = async (venueId: string, action: 'approve' | 'reject', reason?: string) => {
+    if (action === 'reject' && !reason) {
+      // Find the venue to reject and show modal
+      const venue = venues.find(v => v.id === venueId);
+      if (venue) {
+        setVenueToReject(venue);
+        setShowRejectionModal(true);
+      }
+      return;
+    }
+
     setLoading(true);
-    if (action === 'approve') {
-      await supabase
+    try {
+      if (action === 'approve') {
+        const { data, error } = await supabase.rpc('approve_venue', {
+          venue_uuid: venueId,
+          admin_notes: 'Approved by super admin'
+        });
+        
+        if (error) {
+          console.error('Error approving venue:', error);
+          // Handle error - could show a toast notification
+        } else if (data && data.success) {
+          console.log('Venue approved successfully:', data.message);
+        }
+      } else if (action === 'reject' && reason) {
+        const { data, error } = await supabase.rpc('reject_venue', {
+          venue_uuid: venueId,
+          rejection_reason: reason,
+          admin_notes: 'Rejected by super admin'
+        });
+        
+        if (error) {
+          console.error('Error rejecting venue:', error);
+          // Handle error - could show a toast notification
+        } else if (data && data.success) {
+          console.log('Venue rejected successfully:', data.message);
+        }
+      }
+      
+      // Refresh list
+      const { data: refreshData, error: refreshError } = await supabase
         .from('venues')
-        .update({ approval_status: 'approved', rejection_reason: null })
-        .eq('id', venueId);
-    } else if (action === 'reject' && reason) {
-      await supabase
-        .from('venues')
-        .update({ approval_status: 'rejected', rejection_reason: reason })
-        .eq('id', venueId);
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!refreshError && refreshData) {
+        setVenues(refreshData as VenueDB[]);
+      }
+    } catch (error) {
+      console.error('Error in venue action:', error);
+    } finally {
+      setLoading(false);
     }
-    // Refresh list
-    const { data, error } = await supabase
-      .from('venues')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setVenues(data as VenueDB[]);
-    }
-    setLoading(false);
+  };
+
+  // Handle rejection confirmation
+  const handleRejectionConfirm = async (reason: string) => {
+    if (!venueToReject) return;
+    
+    await handleVenueAction(venueToReject.id, 'reject', reason);
+    setVenueToReject(null);
+    setShowRejectionModal(false);
   };
 
   return (
@@ -351,6 +394,19 @@ export function VenuesPage() {
           isOpen={!!selectedVenue}
           onClose={() => setSelectedVenue(null)}
           onAction={handleVenueAction}
+        />
+      )}
+
+      {/* Rejection Modal */}
+      {showRejectionModal && venueToReject && (
+        <RejectionModal
+          isOpen={showRejectionModal}
+          onClose={() => {
+            setShowRejectionModal(false);
+            setVenueToReject(null);
+          }}
+          onConfirm={handleRejectionConfirm}
+          venueName={venueToReject.venue_name}
         />
       )}
     </div>

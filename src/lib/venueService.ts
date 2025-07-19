@@ -24,6 +24,8 @@ export interface Venue {
   images: string[];
   image_urls?: string[];
   videos: string[];
+  amenities?: string[];
+  photos?: string[];
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
@@ -33,6 +35,7 @@ export interface Venue {
   verified: boolean;
   rating: number;
   review_count: number;
+  average_rating?: number;
   total_reviews?: number;
   created_at: string;
   updated_at: string;
@@ -44,6 +47,7 @@ export interface Venue {
   approval_date?: string;
   rejection_reason?: string;
   approval_status?: 'pending' | 'approved' | 'rejected';
+  is_approved?: boolean;
 }
 
 interface VenueWithOwner extends Venue {
@@ -92,6 +96,36 @@ export interface VenueCreateInput {
   is_active: boolean;
 }
 
+// --- Subvenue/Space Management ---
+export interface Subvenue {
+  id: string;
+  venue_id: string;
+  // Canonical DB columns:
+  name?: string;
+  description?: string;
+  features?: string[];
+  images?: string[];
+  videos?: string[];
+  amenities?: string[];
+  status?: 'active' | 'inactive' | 'maintenance' | 'draft';
+  subvenue_availability?: any;
+  capacity?: number;
+  price_per_hour?: number;
+  price_per_day?: number;
+  // Legacy/compatibility fields (used in frontend forms, not DB):
+  subvenue_name?: string;
+  subvenue_description?: string;
+  subvenue_features?: string[];
+  subvenue_images?: string[];
+  subvenue_videos?: string[];
+  subvenue_amenities?: string[];
+  subvenue_capacity?: number;
+  subvenue_type?: string;
+  subvenue_status?: 'active' | 'inactive' | 'maintenance';
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const venueService = {
   // Get featured venues for homepage
   getFeaturedVenues: async (limit: number = 6): Promise<Venue[]> => {
@@ -122,7 +156,8 @@ export const venueService = {
       const { data, error } = await supabase
         .from('venues')
         .select('*')
-        .eq('status', 'approved')
+        .or('approval_status.eq.approved,is_approved.eq.true')
+        .not('owner_id','is',null)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -142,15 +177,8 @@ export const venueService = {
     try {
       let query = supabase
         .from('venues')
-        .select(`
-          *,
-          owner:profiles!venues_owner_id_fkey(
-            email,
-            name,
-            full_name
-          )
-        `, { count: 'exact' })
-        .eq('status', 'approved');
+        .select('*', { count: 'exact' })
+        .or('approval_status.eq.approved,is_approved.eq.true');
 
       // Apply location filter
       if (filters.location) {
@@ -185,10 +213,18 @@ export const venueService = {
       }
 
       return {
-        venues: (data || []).map((venue: VenueWithOwner) => ({
+        venues: (data || []).map((venue: any) => ({
           ...venue,
-          owner_email: venue.owner?.email,
-          owner_name: venue.owner?.full_name || venue.owner?.name
+          venue_name: venue.name || venue.venue_name || '',
+          venue_type: venue.type || venue.venue_type || '',
+          price_per_hour: venue.price_per_hour || venue.hourly_rate || 0,
+          price_per_day: venue.price_per_day || venue.daily_rate || 0,
+          avg_rating: venue.avg_rating || venue.rating || 0,
+          rating_count: venue.rating_count || venue.review_count || 0,
+          photos: venue.photos || venue.images || [],
+          image_urls: venue.image_urls || venue.images || [],
+          owner_email: venue.owner_email || '',
+          owner_name: venue.owner_name || ''
         })),
         total: count || 0
       };
@@ -201,32 +237,50 @@ export const venueService = {
   // Get single venue by ID
   getVenueById: async (id: string): Promise<Venue | null> => {
     try {
-      const { data, error } = await supabase
+      console.log('Fetching venue with ID:', id);
+      
+      // First, try to get the venue without approval filter to see if it exists
+      const { data: allVenues, error: allError } = await supabase
         .from('venues')
-        .select(`
-          *,
-          owner:profiles!venues_owner_id_fkey(
-            email,
-            name,
-            full_name,
-            phone
-          )
-        `)
-        .eq('id', id)
-        .eq('status', 'approved')
-        .single();
+        .select('*')
+        .eq('id', id);
 
-      if (error) {
-        console.error('Error fetching venue:', error);
-        throw error;
+      if (allError) {
+        console.error('Error fetching venue (no filter):', allError);
+        throw allError;
       }
 
-      if (!data) return null;
+      console.log('All venues with this ID:', allVenues);
+
+      if (!allVenues || allVenues.length === 0) {
+        console.log('No venue found with ID:', id);
+        return null;
+      }
+
+      const venue = allVenues[0];
+      console.log('Found venue:', venue);
+      console.log('Venue approval status:', venue.approval_status, 'is_approved:', venue.is_approved);
+
+      // Check if venue is approved
+      const isApproved = venue.approval_status === 'approved' || venue.is_approved === true;
+      
+      if (!isApproved) {
+        console.log('Venue is not approved. Status:', venue.approval_status, 'is_approved:', venue.is_approved);
+        return null;
+      }
 
       return {
-        ...data,
-        owner_email: data.owner?.email,
-        owner_name: data.owner?.full_name || data.owner?.name
+        ...venue,
+        venue_name: venue.name || venue.venue_name || '',
+        venue_type: venue.type || venue.venue_type || '',
+        price_per_hour: venue.price_per_hour || venue.hourly_rate || 0,
+        price_per_day: venue.price_per_day || venue.daily_rate || 0,
+        avg_rating: venue.avg_rating || venue.rating || 0,
+        rating_count: venue.rating_count || venue.review_count || 0,
+        photos: venue.photos || venue.images || [],
+        image_urls: venue.image_urls || venue.images || [],
+        owner_email: venue.owner_email || '',
+        owner_name: venue.owner_name || ''
       };
     } catch (error) {
       console.error('Error in getVenueById:', error);
@@ -261,13 +315,7 @@ export const venueService = {
       const { data, error } = await supabase
         .from('user_favorites')
         .select(`
-          venue:venues(
-            *,
-            owner:profiles!venues_owner_id_fkey(
-              email,
-              full_name
-            )
-          )
+          venue:venues(*)
         `)
         .eq('user_id', userId);
 
@@ -276,12 +324,20 @@ export const venueService = {
         throw error;
       }
 
-      const favorites = data as unknown as { venue: VenueWithOwner }[] | null;
+      const favorites = data as unknown as { venue: any }[] | null;
 
       return favorites?.map((item) => ({
         ...item.venue,
-        owner_email: item.venue.owner?.email,
-        owner_name: item.venue.owner?.full_name
+        venue_name: item.venue.name || item.venue.venue_name || '',
+        venue_type: item.venue.type || item.venue.venue_type || '',
+        price_per_hour: item.venue.price_per_hour || item.venue.hourly_rate || 0,
+        price_per_day: item.venue.price_per_day || item.venue.daily_rate || 0,
+        avg_rating: item.venue.avg_rating || item.venue.rating || 0,
+        rating_count: item.venue.rating_count || item.venue.review_count || 0,
+        photos: item.venue.photos || item.venue.images || [],
+        image_urls: item.venue.image_urls || item.venue.images || [],
+        owner_email: item.venue.owner_email || '',
+        owner_name: item.venue.owner_name || ''
       })) || [];
     } catch (error) {
       console.error('Error in getUserFavorites:', error);
@@ -438,5 +494,66 @@ export const venueService = {
     // This is part of the "frontend-first" approach where we will adjust backend/types later.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return data as any as Venue[];
+  },
+
+  // Fetch all subvenues for a main venue
+  async getSubvenuesByVenue(venueId: string): Promise<Subvenue[]> {
+    const { data, error } = await supabase
+      .from('subvenues')
+      .select('*')
+      .eq('venue_id', venueId)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error fetching subvenues:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  // Create a new subvenue
+  async createSubvenue(subvenue: Omit<Subvenue, 'id' | 'created_at' | 'updated_at'>): Promise<Subvenue | null> {
+    const { data, error } = await supabase
+      .from('subvenues')
+      .insert(subvenue)
+      .select('*')
+      .single();
+    if (error) {
+      console.error('Error creating subvenue:', error);
+      return null;
+    }
+    return data as Subvenue;
+  },
+
+  // Update an existing subvenue
+  async updateSubvenue(subvenueId: string, updates: Partial<Subvenue>): Promise<Subvenue | null> {
+    const { data, error } = await supabase
+      .from('subvenues')
+      .update(updates)
+      .eq('id', subvenueId)
+      .select('*')
+      .single();
+    if (error) {
+      console.error('Error updating subvenue:', error);
+      return null;
+    }
+    return data as Subvenue;
+  },
+
+  // Delete a subvenue by id
+  async deleteSubvenue(subvenueId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('subvenues')
+        .delete()
+        .eq('id', subvenueId);
+      if (error) {
+        console.error('Error deleting subvenue:', error);
+        throw error;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error in deleteSubvenue:', error);
+      return false;
+    }
   }
 }; 

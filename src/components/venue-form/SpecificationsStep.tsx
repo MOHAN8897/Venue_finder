@@ -15,6 +15,7 @@ import {
   IceCream, Gift, Heart, Sparkles, Star, Award, Crown, Gem, Activity
 } from 'lucide-react';
 import { VenueFormData } from '../VenueListingForm';
+import { AmenitiesPicker } from '@/components/common/AmenitiesPicker';
 
 interface SpecificationsStepProps {
   formData: VenueFormData;
@@ -246,78 +247,11 @@ export default function SpecificationsStep({ formData, updateFormData }: Specifi
         </Card>
       )}
 
-      {/* Amenities Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-primary" />
-            Add Amenities & Features
-          </CardTitle>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search amenities..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeCategory} onValueChange={setActiveCategory}>
-            <TabsList className="grid grid-cols-3 lg:grid-cols-5 mb-4">
-              {Object.keys(filteredAmenities).slice(0, 5).map((category) => (
-                <TabsTrigger key={category} value={category} className="text-xs">
-                  {category.split(' ')[0]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            {Object.entries(filteredAmenities).map(([category, amenities]) => (
-              <TabsContent key={category} value={category}>
-                <ScrollArea className="h-64">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pr-4">
-                    {amenities.map((amenity) => {
-                      const IconComponent = amenity.icon;
-                      const isSelected = formData.amenities.includes(amenity.id);
-                      return (
-                        <div
-                          key={amenity.id}
-                          onClick={() => handleAmenityToggle(amenity.id)}
-                          className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
-                            isSelected
-                              ? 'border-primary bg-primary/5 text-primary'
-                              : 'border-border hover:bg-accent/50'
-                          }`}
-                        >
-                          <IconComponent className={`w-5 h-5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                          <span className="flex-1 font-medium">{amenity.label}</span>
-                          {isSelected && <Check className="w-4 h-4 text-primary" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            ))}
-
-            {/* Additional category tabs */}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {Object.keys(filteredAmenities).slice(5).map((category) => (
-                <Button
-                  key={category}
-                  variant={activeCategory === category ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveCategory(category)}
-                  className="text-xs"
-                >
-                  {category}
-                </Button>
-              ))}
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
+      {/* Amenities Section (replaces old logic) */}
+      <AmenitiesPicker
+        amenities={formData.amenities}
+        onChange={(updated) => updateFormData({ amenities: updated })}
+      />
 
       {/* Summary */}
       <div className="bg-accent/50 rounded-lg p-4 border border-accent">

@@ -173,6 +173,22 @@ CREATE POLICY "Users can delete their own bookings" ON public.user_bookings
 - created_at (timestamptz)
 - updated_at (timestamptz)
 
+### Subvenues (sub-venue/space management)
+- id: uuid (PK)
+- venue_id: uuid (FK to venues.id)
+- subvenue_name: text
+- subvenue_description: text
+- subvenue_features: text[]
+- subvenue_images: text[]
+- subvenue_videos: text[]
+- subvenue_amenities: text[]
+- subvenue_capacity: integer
+- subvenue_type: text
+- subvenue_status: subvenue_status (enum: active, inactive, maintenance)
+- created_at: timestamptz
+- updated_at: timestamptz
+
+**Note:** All sub-venue/space management uses this table. All columns are prefixed with `subvenue_` for clarity. Linked to main venue by `venue_id`. Migration performed 2024-08-02.
 
 ## 2. Database Functions (RPC)
 

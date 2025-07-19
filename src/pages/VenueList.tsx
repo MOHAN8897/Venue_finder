@@ -27,7 +27,7 @@ interface VenueCardProps {
 const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handleToggleFavorite, navigate }: VenueCardProps) => (
   <div
     key={venue.id}
-    className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl group border border-gray-100 relative"
+    className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-row transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl group border border-gray-100 relative h-48"
   >
     {/* Favorite Heart Icon */}
     <button
@@ -42,7 +42,9 @@ const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handl
       />
     </button>
     {/* End Favorite Heart Icon */}
-    <div className="relative h-48 w-full overflow-hidden">
+    
+    {/* Left Section - Image */}
+    <div className="w-1/2 h-full overflow-hidden">
       <img
         src={
           (venue.image_urls && venue.image_urls.length > 0 && venue.image_urls[0]) ||
@@ -52,20 +54,25 @@ const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handl
         alt={venue.name}
         loading="lazy"
         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        style={{ objectPosition: 'center' }}
       />
     </div>
-    <div className="flex-1 flex flex-col p-5">
-      <h2 className="text-xl font-semibold text-gray-900 mb-1 truncate">{venue.name}</h2>
-      <div className="flex items-center text-gray-500 text-sm mb-2">
-        <MapPin className="h-4 w-4 mr-1 text-blue-500" />
-        <span className="truncate">{venue.city}, {venue.state}</span>
+    
+    {/* Right Section - Details */}
+    <div className="w-1/2 flex flex-col p-5 justify-between">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-1 truncate">{venue.name}</h2>
+        <div className="flex items-center text-gray-500 text-sm mb-2">
+          <MapPin className="h-4 w-4 mr-1 text-blue-500" />
+          <span className="truncate">{venue.city}, {venue.state}</span>
+        </div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-lg font-bold text-blue-600">₹{venue.hourly_rate}</span>
+          <span className="text-xs text-gray-500">/ hour</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg font-bold text-blue-600">₹{venue.hourly_rate}</span>
-        <span className="text-xs text-gray-500">/ hour</span>
-      </div>
-      <div className="flex-1" />
-      <div className="flex gap-2 mt-4">
+      
+      <div className="flex gap-2">
         <button
           className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold"
           style={{ textTransform: 'none', fontWeight: 600 }}
@@ -74,7 +81,7 @@ const VenueCard = React.memo(({ venue, favoriteVenueIds, favoritesLoading, handl
           View Details
         </button>
         <button
-          className="bg-blue-500 text-blue-500 px-4 py-2 rounded-full text-sm font-semibold"
+          className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-semibold"
           style={{ textTransform: 'none', fontWeight: 600 }}
           onClick={() => navigate(`/book/${venue.id}`)}
         >
@@ -221,7 +228,7 @@ const VenueList: React.FC = () => {
         {/* End Filter Bar */}
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">Browse Venues</h1>
         {/* Venue Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {loading ? (
             <div className="col-span-full flex justify-center items-center py-12">
               <span>Loading venues...</span>

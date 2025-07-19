@@ -22,7 +22,7 @@ const menuItems = [
     icon: Home,
   },
   {
-    title: "My Boxes",
+    title: "My Venues",
     url: "/manageyourpage-boxes",
     icon: Building2,
   },

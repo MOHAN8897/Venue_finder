@@ -30,11 +30,11 @@ const NotFound: React.FC = () => {
             </Link>
             
             <Link
-              to="/venues"
+                              to="/list-venue"
               className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors font-semibold flex items-center justify-center space-x-2"
             >
               <Search className="h-5 w-5" />
-              <span>Browse Venues</span>
+                              <span>List Your Venue</span>
             </Link>
             
             <button
