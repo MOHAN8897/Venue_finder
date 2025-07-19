@@ -641,23 +641,37 @@ const BrowseVenues: React.FC = () => {
     return (
       <Card className="group overflow-hidden hover:shadow-md transition-all duration-200">
         <div className="flex">
-          {/* Image - Smaller */}
-          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0">
+          {/* Image - Optimized for mobile with better aspect ratio */}
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-l-lg overflow-hidden bg-gray-100">
             {images.length > 0 ? (
               <img
                 src={images[0]}
                 alt={venue.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-center"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
               />
-            ) : (
-              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+            ) : null}
+            
+            {/* Fallback for no image or failed load */}
+            <div className={`w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center ${images.length > 0 ? 'hidden' : ''}`}>
+              <div className="text-center">
+                <div className="w-6 h-6 mx-auto mb-1 text-gray-400">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                  </svg>
+                </div>
                 <span className="text-gray-500 text-xs">No Image</span>
               </div>
-            )}
+            </div>
             
             {/* Rating Badge - Smaller */}
             <div className="absolute top-1 right-1">
-              <Badge className="bg-white/90 text-gray-900 text-xs px-1 py-0.5">
+              <Badge className="bg-white/90 text-gray-900 text-xs px-1 py-0.5 shadow-sm">
                 <Star className="h-2 w-2 fill-yellow-400 text-yellow-400 mr-0.5" />
                 {venue.rating?.toFixed(1) || venue.average_rating?.toFixed(1) || 'N/A'}
               </Badge>
@@ -741,18 +755,32 @@ const BrowseVenues: React.FC = () => {
     return (
       <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]">
         {/* Image */}
-        <div className="relative aspect-video overflow-hidden">
+        <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
           {images.length > 0 ? (
             <img
               src={images[0]}
               alt={venue.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center"
+              loading="lazy"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.nextElementSibling?.classList.remove('hidden');
+              }}
             />
-          ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500 text-sm sm:text-base">No Image</span>
+          ) : null}
+          
+          {/* Fallback for no image or failed load */}
+          <div className={`w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center ${images.length > 0 ? 'hidden' : ''}`}>
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 text-gray-400">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <span className="text-gray-500 text-sm">No Image Available</span>
             </div>
-          )}
+          </div>
           
           {/* Rating Badge */}
           <div className="absolute top-2 sm:top-3 right-2 sm:right-3">
