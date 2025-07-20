@@ -154,85 +154,44 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue, onViewDetails, onBookNow }
   };
 
   // Generate dummy images if none provided
-  const carouselImages = images.length > 0 ? images : [
-    'https://picsum.photos/400/225?random=1',
-    'https://picsum.photos/400/225?random=2',
-    'https://picsum.photos/400/225?random=3',
-    'https://picsum.photos/400/225?random=4'
-  ];
+  const cardImage = images.length > 0 ? images[0] : 'https://picsum.photos/400/225?random=1';
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 group flex flex-col h-full">
-      {/* Custom Swiper Styles */}
-      <style dangerouslySetInnerHTML={{ __html: swiperStyles }} />
-      
-      {/* Image Carousel */}
-      <div className="relative aspect-video w-full">
-        <Swiper
-          modules={[Navigation, Pagination, Autoplay]}
-          navigation={true}
-          pagination={{ clickable: true }}
-          autoplay={{ delay: 5000, disableOnInteraction: false }}
-          loop={carouselImages.length > 1}
-          className="h-full w-full"
-          spaceBetween={0}
-          slidesPerView={1}
-          breakpoints={{
-            640: {
-              slidesPerView: 1,
-            },
-            768: {
-              slidesPerView: 1,
-            },
-            1024: {
-              slidesPerView: 1,
-            },
-          }}
-        >
-          {carouselImages.map((image, index) => (
-            <SwiperSlide key={index} className="w-full h-full">
-              <img
-                src={image}
-                alt={`${venue.name} - Image ${index + 1}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </SwiperSlide>
-          ))}
-        </Swiper>
-
+    <div className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col sm:flex-row items-stretch overflow-hidden w-full max-w-2xl mx-auto mb-4">
+      {/* Image Section */}
+      <div className="sm:w-48 w-full flex-shrink-0 relative aspect-video sm:aspect-auto">
+        <img
+          src={cardImage}
+          alt={venue.name}
+          className="w-full h-full object-cover sm:rounded-l-2xl sm:rounded-tr-none rounded-t-2xl"
+        />
         {/* Rating Badge */}
-        <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-2 left-2 z-10">
           <Badge className="bg-yellow-400 text-yellow-900 text-xs font-medium px-2 py-1 rounded-full">
             <Star className="h-3 w-3 fill-yellow-600 text-yellow-600 mr-1" />
-            {venue.rating?.toFixed(1) || 'N/A'}
+            {venue.rating?.toFixed(1) || '0.0'}
           </Badge>
         </div>
       </div>
 
-      {/* Venue Details */}
-      <div className="p-4 space-y-3 flex-1 flex flex-col">
-        {/* Venue Name and Location */}
-        <div className="space-y-1">
-          <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
-            {venue.name}
-          </h3>
-          <div className="flex items-start text-sm text-gray-600">
-            <MapPin className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
-            <span className="line-clamp-2">{venue.address}</span>
+      {/* Details Section */}
+      <div className="flex flex-col flex-1 p-4 gap-2 justify-between">
+        <div className="flex flex-col gap-1">
+          {/* Venue Name */}
+          <h3 className="font-bold text-lg text-gray-900 truncate max-w-full">{venue.name}</h3>
+          {/* Location */}
+          <div className="flex items-center text-xs text-gray-600 truncate max-w-full">
+            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+            <span className="truncate">{venue.address}</span>
           </div>
-        </div>
-
-        {/* Capacity */}
-        <div className="flex items-center text-sm text-gray-600">
-          <Users className="h-4 w-4 mr-2 flex-shrink-0" />
-          <span>Up to {venue.capacity} people</span>
-        </div>
-
-        {/* Amenities */}
-        {amenities.length > 0 && (
-          <div className="space-y-2 flex-1">
-            <div className="flex flex-wrap gap-2">
+          {/* Capacity */}
+          <div className="flex items-center text-xs text-gray-600">
+            <Users className="h-4 w-4 mr-1 flex-shrink-0" />
+            <span>Up to {venue.capacity} people</span>
+          </div>
+          {/* Amenities */}
+          {amenities.length > 0 && (
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               {displayAmenities.map((amenity, index) => (
                 <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
                   {renderAmenityIcon(amenity)}
@@ -241,34 +200,28 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue, onViewDetails, onBookNow }
               ))}
               {remainingCount > 0 && (
                 <div className="flex items-center bg-gray-100 px-2 py-1 rounded-full text-xs text-gray-600">
-                  +{remainingCount} more
+                  +{remainingCount}
                 </div>
               )}
             </div>
+          )}
+        </div>
+        {/* Price and Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-2">
+          <div className="flex flex-col items-start sm:items-end">
+            <div className="text-xl font-bold text-blue-600">₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}</div>
+            <div className="text-xs text-gray-500">per day</div>
           </div>
-        )}
-
-        {/* Price and Action Buttons Container */}
-        <div className="space-y-3 mt-auto">
-          {/* Price */}
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600">
-              ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
-            </div>
-            <div className="text-sm text-gray-500">per day</div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-2 mt-2 sm:mt-0">
             <Button
               variant="outline"
-              className="flex-1"
+              className="px-4"
               onClick={() => onViewDetails?.(venue)}
             >
               View
             </Button>
             <Button
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 px-4"
               onClick={() => onBookNow?.(venue.id)}
             >
               Book
