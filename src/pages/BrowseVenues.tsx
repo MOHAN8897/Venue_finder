@@ -327,7 +327,7 @@ const BrowseVenues: React.FC = () => {
     return amenityIcons[amenityKey] || <span className="h-4 w-4">•</span>;
   };
 
-  // Venue Detail Modal with Image Carousel
+  // Venue Detail Modal with Mobile-First Design (OYO Style)
   const VenueDetailModal: React.FC = () => {
     if (!selectedVenue) return null;
 
@@ -342,15 +342,15 @@ const BrowseVenues: React.FC = () => {
       setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
     };
 
-      return (
+    return (
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md w-full max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-full w-full h-full max-h-screen p-0 rounded-none sm:max-w-md sm:h-auto sm:max-h-[90vh] sm:rounded-lg">
           <DialogHeader className="p-0">
             <DialogTitle className="sr-only">Venue Details</DialogTitle>
           </DialogHeader>
           
-          {/* Image Carousel */}
-          <div className="relative w-full h-64 bg-gray-100">
+          {/* Full Screen Image Carousel */}
+          <div className="relative w-full h-64 sm:h-64 bg-gray-100">
             {images.length > 0 ? (
               <>
                 <img
@@ -364,19 +364,24 @@ const BrowseVenues: React.FC = () => {
                   <>
                     <button
                       onClick={prevImage}
-                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 transition-colors z-10"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-5 w-5" />
                     </button>
                     <button
                       onClick={nextImage}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 transition-colors z-10"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-5 w-5" />
                     </button>
                     
+                    {/* Image Counter */}
+                    <div className="absolute top-4 left-4 bg-black/60 text-white px-2 py-1 rounded-full text-sm font-medium z-10">
+                      {currentImageIndex + 1} / {images.length}
+                    </div>
+                    
                     {/* Image Indicators */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
                       {images.map((_, index) => (
                         <button
                           key={index}
@@ -406,31 +411,32 @@ const BrowseVenues: React.FC = () => {
             {/* Close Button */}
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+              className="absolute top-4 right-4 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 transition-colors z-10"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Venue Details */}
-          <div className="p-4 space-y-4">
+          {/* Venue Details - Mobile Optimized */}
+          <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(100vh-16rem)] sm:max-h-none">
             {/* Venue Name and Rating */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="text-xl font-bold text-gray-900 mb-1">{selectedVenue.name}</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-gray-900 leading-tight">{selectedVenue.name}</h2>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{selectedVenue.rating?.toFixed(1) || selectedVenue.average_rating?.toFixed(1) || 'N/A'}</span>
-                  <span>•</span>
-                  <span>{selectedVenue.type}</span>
+                  <span className="font-medium">{selectedVenue.rating?.toFixed(1) || selectedVenue.average_rating?.toFixed(1) || 'N/A'}</span>
+                  <span className="text-gray-500">({selectedVenue.review_count || 0} reviews)</span>
                 </div>
+                <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                <span className="text-gray-600 font-medium">{selectedVenue.type}</span>
               </div>
             </div>
 
             {/* Location */}
             <div className="flex items-start gap-2">
               <MapPin className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
-              <span className="text-sm text-gray-700">{selectedVenue.address}</span>
+              <span className="text-sm text-gray-700 leading-relaxed">{selectedVenue.address}</span>
             </div>
 
             {/* Capacity */}
@@ -441,47 +447,55 @@ const BrowseVenues: React.FC = () => {
 
             {/* Amenities */}
             {amenities.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Amenities</h3>
-                <div className="flex flex-wrap gap-2">
-                  {amenities.map((amenity, index) => (
-                    <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900 text-base">Amenities</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {amenities.slice(0, 8).map((amenity, index) => (
+                    <div key={index} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
                       {renderAmenityIcon(amenity)}
-                      <span className="capitalize">{amenity}</span>
+                      <span className="text-sm capitalize text-gray-700">{amenity}</span>
                     </div>
                   ))}
+                  {amenities.length > 8 && (
+                    <div className="col-span-2 text-center py-2">
+                      <span className="text-sm text-blue-600 font-medium">+{amenities.length - 8} more amenities</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Price */}
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                ₹{selectedVenue.price_per_day || selectedVenue.price_per_hour || selectedVenue.hourly_rate || 0}
+            {/* Price Section */}
+            <div className="bg-blue-50 p-4 rounded-xl space-y-2">
+              <div className="flex items-baseline gap-2">
+                <div className="text-2xl font-bold text-blue-600">
+                  ₹{selectedVenue.price_per_day || selectedVenue.price_per_hour || selectedVenue.hourly_rate || 0}
+                </div>
+                <div className="text-sm text-gray-600">per day</div>
               </div>
-              <div className="text-sm text-gray-600">per day</div>
+              <div className="text-xs text-gray-500">+ taxes & fees may apply</div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
+            <div className="space-y-3 pt-2">
               <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  navigate(`/venue/${selectedVenue.id}`);
-                }}
-              >
-                View Full Details
-              </Button>
-              <Button
-                className="flex-1"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3"
                 onClick={() => {
                   setIsModalOpen(false);
                   navigate(`/book/${selectedVenue.id}`);
                 }}
               >
                 Book Now
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-3"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  navigate(`/venue/${selectedVenue.id}`);
+                }}
+              >
+                View Full Details
               </Button>
             </div>
           </div>
