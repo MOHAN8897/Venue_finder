@@ -214,8 +214,8 @@ const UserSettings: React.FC = () => {
               className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-3 sm:mb-4 text-sm sm:text-base"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Link>
+            Back to Dashboard
+          </Link>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Account Settings</h1>
@@ -223,7 +223,7 @@ const UserSettings: React.FC = () => {
                   Manage your profile, preferences, and account settings.
                 </p>
               </div>
-              {!isEditing && (
+            {!isEditing && (
                 <Button 
                   variant="outline" 
                   onClick={() => setIsEditing(true)} 
@@ -232,9 +232,9 @@ const UserSettings: React.FC = () => {
                   <User className="h-4 w-4 mr-2" />
                   Edit Profile
                 </Button>
-              )}
-            </div>
-          </header>
+            )}
+          </div>
+        </header>
 
           {/* Error/Success Messages - Mobile Optimized */}
           {error && (
@@ -372,8 +372,8 @@ const UserSettings: React.FC = () => {
           </Card>
 
           {/* Notification Settings Card - Mobile Optimized */}
-          <Card>
-            <CardHeader>
+            <Card>
+              <CardHeader>
               <CardTitle className="flex items-center text-lg sm:text-xl">
                 <Mail className="h-5 w-5 mr-2" />
                 Notification Settings
@@ -381,9 +381,9 @@ const UserSettings: React.FC = () => {
               <CardDescription className="text-sm sm:text-base">
                 Manage how you receive notifications from VenueFinder.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-6">
-              <div className="space-y-4">
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="space-y-4">
                 <h4 className="font-semibold text-gray-700 flex items-center text-sm sm:text-base">
                   <Mail className="mr-2 h-4 w-4 sm:h-5 sm:w-5"/>
                   Email Notifications
@@ -422,10 +422,10 @@ const UserSettings: React.FC = () => {
                       disabled={!isEditing} 
                     />
                   </div>
-                </div>
+                  </div>
               </div>
 
-              <div className="space-y-4">
+                <div className="space-y-4">
                 <h4 className="font-semibold text-gray-700 flex items-center text-sm sm:text-base">
                   <Smartphone className="mr-2 h-4 w-4 sm:h-5 sm:w-5"/>
                   SMS Notifications
@@ -441,16 +441,16 @@ const UserSettings: React.FC = () => {
                     disabled={!isEditing} 
                   />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
 
           {/* Floating Save Button - Mobile Optimized */}
-          {isEditing && (
+        {isEditing && (
             <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 border-t z-10">
               <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <Button 
-                  variant="outline" 
+              <Button
+                variant="outline"
                   onClick={() => setIsEditing(false)} 
                   disabled={loading}
                   className="flex-1 sm:flex-none h-12 sm:h-10"
@@ -459,13 +459,13 @@ const UserSettings: React.FC = () => {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleProfileSave}
-                  disabled={loading}
+                onClick={handleProfileSave}
+                disabled={loading}
                   className="flex-1 sm:flex-none h-12 sm:h-10"
-                >
+              >
                   <Save className="h-4 w-4 mr-2" />
                   {loading ? 'Saving...' : 'Save Changes'}
-                </Button>
+              </Button>
               </div>
             </div>
           )}

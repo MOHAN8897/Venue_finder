@@ -116,7 +116,7 @@ const VenueCardDemo: React.FC = () => {
         </div>
 
         {/* Responsive Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
           {sampleVenues.map((venue) => (
             <VenueCard
               key={venue.id}

@@ -19,7 +19,7 @@ const CompliancePage: React.FC = () => {
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Manage Venues
-          </Link>
+            </Link>
         </div>
 
         {/* Header - Mobile Optimized */}
@@ -31,8 +31,8 @@ const CompliancePage: React.FC = () => {
                 Compliance Management
               </h1>
               <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
-                Managing documents for: <span className="font-semibold">{venueName}</span>
-              </p>
+            Managing documents for: <span className="font-semibold">{venueName}</span>
+          </p>
             </div>
             <div className="flex items-center gap-2">
               <button className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg text-sm sm:text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 h-10 sm:h-9">

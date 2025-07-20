@@ -204,12 +204,12 @@ const VenueList: React.FC = () => {
                         View Details
                       </Button>
                     </Link>
-                  </div>
+            </div>
                 </CardContent>
               </Card>
             ))}
-          </div>
-        ) : (
+            </div>
+          ) : (
           <div className="space-y-4">
             {sortedVenues.map((venue) => (
               <Card key={venue.id} className="hover:shadow-lg transition-shadow">
@@ -264,7 +264,7 @@ const VenueList: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
+        </div>
                 </CardContent>
               </Card>
             ))}

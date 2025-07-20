@@ -57,20 +57,20 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, venueName }) => {
       <div className="bg-white px-4 py-3 border-b">
         <h1 className="text-xl font-bold text-gray-900">{venueName}</h1>
       </div>
-
+      
       {/* Horizontal Scrolling Carousel */}
       <div className="relative bg-gray-100 p-6">
         <div className="w-full">
           <div className="relative w-full">
             {/* Left Navigation */}
             {images.length > 1 && currentIndex > 0 && (
-              <button
+          <button
                 onClick={scrollLeft}
                 className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 -ml-4"
-                aria-label="Previous image"
-              >
-                <ChevronLeft className="h-6 w-6 text-gray-800" />
-              </button>
+            aria-label="Previous image"
+          >
+            <ChevronLeft className="h-6 w-6 text-gray-800" />
+          </button>
             )}
 
             {/* Scrollable Images Container */}
@@ -103,34 +103,34 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, venueName }) => {
 
             {/* Right Navigation */}
             {images.length > 1 && currentIndex < images.length - 1 && (
-              <button
+          <button
                 onClick={scrollRight}
                 className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 -mr-4"
-                aria-label="Next image"
-              >
-                <ChevronRight className="h-6 w-6 text-gray-800" />
-              </button>
+            aria-label="Next image"
+          >
+            <ChevronRight className="h-6 w-6 text-gray-800" />
+          </button>
             )}
           </div>
         </div>
 
         {/* Dots Indicator */}
-        {images.length > 1 && (
+      {images.length > 1 && (
           <div className="flex justify-center mt-6 space-x-2">
-            {images.map((_, index) => (
-              <button
-                key={index}
+          {images.map((_, index) => (
+            <button
+              key={index}
                 onClick={() => scrollToImage(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-200 ${
-                  currentIndex === index
+              className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                currentIndex === index 
                     ? 'bg-blue-500' 
                     : 'bg-gray-300 hover:bg-gray-400'
-                }`}
-                aria-label={`Go to image ${index + 1}`}
-              />
-            ))}
-          </div>
-        )}
+              }`}
+              aria-label={`Go to image ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
 
 
       </div>

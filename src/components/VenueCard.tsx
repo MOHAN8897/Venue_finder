@@ -10,6 +10,54 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
+// Custom styles for better mobile responsiveness
+const swiperStyles = `
+  .swiper {
+    width: 100%;
+    height: 100%;
+  }
+  .swiper-slide {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .swiper-button-next,
+  .swiper-button-prev {
+    color: white;
+    background: rgba(0, 0, 0, 0.5);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-top: -16px;
+  }
+  .swiper-button-next:after,
+  .swiper-button-prev:after {
+    font-size: 14px;
+  }
+  .swiper-pagination-bullet {
+    background: white;
+    opacity: 0.7;
+  }
+  .swiper-pagination-bullet-active {
+    opacity: 1;
+    background: #3b82f6;
+  }
+  @media (max-width: 768px) {
+    .swiper-button-next,
+    .swiper-button-prev {
+      width: 28px;
+      height: 28px;
+      margin-top: -14px;
+    }
+    .swiper-button-next:after,
+    .swiper-button-prev:after {
+      font-size: 12px;
+    }
+  }
+`;
+
 // Amenity icons mapping
 const amenityIcons: Record<string, React.ReactNode> = {
   wifi: <Wifi className="h-4 w-4" />,
@@ -114,19 +162,35 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue, onViewDetails, onBookNow }
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 group">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 group flex flex-col h-full">
+      {/* Custom Swiper Styles */}
+      <style dangerouslySetInnerHTML={{ __html: swiperStyles }} />
+      
       {/* Image Carousel */}
-      <div className="relative aspect-video">
+      <div className="relative aspect-video w-full">
         <Swiper
           modules={[Navigation, Pagination, Autoplay]}
           navigation={true}
           pagination={{ clickable: true }}
           autoplay={{ delay: 5000, disableOnInteraction: false }}
           loop={carouselImages.length > 1}
-          className="h-full"
+          className="h-full w-full"
+          spaceBetween={0}
+          slidesPerView={1}
+          breakpoints={{
+            640: {
+              slidesPerView: 1,
+            },
+            768: {
+              slidesPerView: 1,
+            },
+            1024: {
+              slidesPerView: 1,
+            },
+          }}
         >
           {carouselImages.map((image, index) => (
-            <SwiperSlide key={index}>
+            <SwiperSlide key={index} className="w-full h-full">
               <img
                 src={image}
                 alt={`${venue.name} - Image ${index + 1}`}
@@ -147,27 +211,27 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue, onViewDetails, onBookNow }
       </div>
 
       {/* Venue Details */}
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 flex-1 flex flex-col">
         {/* Venue Name and Location */}
         <div className="space-y-1">
           <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
             {venue.name}
           </h3>
-          <div className="flex items-center text-sm text-gray-600">
-            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-            <span className="line-clamp-1">{venue.address}</span>
+          <div className="flex items-start text-sm text-gray-600">
+            <MapPin className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{venue.address}</span>
           </div>
         </div>
 
         {/* Capacity */}
         <div className="flex items-center text-sm text-gray-600">
-          <Users className="h-4 w-4 mr-2" />
+          <Users className="h-4 w-4 mr-2 flex-shrink-0" />
           <span>Up to {venue.capacity} people</span>
         </div>
 
         {/* Amenities */}
         {amenities.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 flex-1">
             <div className="flex flex-wrap gap-2">
               {displayAmenities.map((amenity, index) => (
                 <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
@@ -184,29 +248,32 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue, onViewDetails, onBookNow }
           </div>
         )}
 
-        {/* Price */}
-        <div className="text-right">
-          <div className="text-2xl font-bold text-blue-600">
-            ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
+        {/* Price and Action Buttons Container */}
+        <div className="space-y-3 mt-auto">
+          {/* Price */}
+          <div className="text-right">
+            <div className="text-2xl font-bold text-blue-600">
+              ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
+            </div>
+            <div className="text-sm text-gray-500">per day</div>
           </div>
-          <div className="text-sm text-gray-500">per day</div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 pt-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => onViewDetails?.(venue)}
-          >
-            View
-          </Button>
-          <Button
-            className="flex-1 bg-green-600 hover:bg-green-700"
-            onClick={() => onBookNow?.(venue.id)}
-          >
-            Book
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => onViewDetails?.(venue)}
+            >
+              View
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={() => onBookNow?.(venue.id)}
+            >
+              Book
+            </Button>
+          </div>
         </div>
       </div>
     </div>

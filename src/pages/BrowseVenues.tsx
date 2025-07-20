@@ -160,9 +160,9 @@ const BrowseVenues: React.FC = () => {
     applyFilters();
   }, [venues, filters]);
 
-  const fetchVenues = async () => {
-    try {
-      setLoading(true);
+    const fetchVenues = async () => {
+      try {
+        setLoading(true);
       setError(null);
       
       console.log('Fetching venues...');
@@ -205,10 +205,10 @@ const BrowseVenues: React.FC = () => {
     } catch (err) {
       console.error('Error fetching venues:', err);
       setError('Failed to load venues. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const applyFilters = () => {
     let filtered = [...venues];
@@ -342,7 +342,7 @@ const BrowseVenues: React.FC = () => {
       setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
     };
 
-    return (
+      return (
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md w-full max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="p-0">
@@ -928,7 +928,7 @@ const BrowseVenues: React.FC = () => {
           {images.length > 0 ? (
             <img
               src={images[0]}
-              alt={venue.name}
+            alt={venue.name}
               className="w-full h-full object-cover object-center"
               loading="lazy"
               onError={(e) => {
@@ -996,7 +996,7 @@ const BrowseVenues: React.FC = () => {
               {remainingCount > 0 && (
                 <span className="text-xs text-gray-500">
                   +{remainingCount} more amenities
-                </span>
+            </span>
               )}
             </div>
           )}
@@ -1060,7 +1060,7 @@ const BrowseVenues: React.FC = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="min-h-screen bg-gray-50 py-4 sm:py-6 md:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1080,7 +1080,7 @@ const BrowseVenues: React.FC = () => {
           {venues.length > 0 && (
             <div className="mt-2">
               <p className="text-xs text-blue-700">Sample venue: {venues[0].name} - Type: {venues[0].type} - Price: ₹{venues[0].price_per_day || venues[0].price_per_hour || venues[0].hourly_rate}</p>
-            </div>
+          </div>
           )}
         </div>
 
@@ -1089,7 +1089,7 @@ const BrowseVenues: React.FC = () => {
           {/* Compact Filters at Top */}
           <div className="mb-4">
             <CompactFilterSection />
-          </div>
+        </div>
 
           {/* Venue Grid - Compact Cards */}
           <div className="space-y-3">
@@ -1097,7 +1097,7 @@ const BrowseVenues: React.FC = () => {
               <div className="text-center py-8 px-4">
                 <div className="text-gray-400 mb-4">
                   <MapPin className="h-12 w-12 mx-auto" />
-                </div>
+        </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No venues found</h3>
                 <p className="text-sm text-gray-600 mb-4">
                   Try adjusting your filters to find more venues.
@@ -1140,11 +1140,11 @@ const BrowseVenues: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {filteredVenues.map((venue) => (
+            {filteredVenues.map((venue) => (
                   <StandardVenueCard key={venue.id} venue={venue} />
-                ))}
-              </div>
-            )}
+            ))}
+          </div>
+        )}
           </div>
         </div>
       </div>
