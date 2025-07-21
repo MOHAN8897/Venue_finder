@@ -43,6 +43,19 @@
 - **Apply changes directly when possible.**
 - **If a change cannot be applied automatically, provide the command or instructions to the user.**
 
+## 9. Mobile-First Optimization Policy
+- **This website is primarily designed for mobile devices - mobile optimization is the FIRST priority.**
+- **For every update, feature, or component:**
+  - **Start with mobile design and functionality first**
+  - **Ensure optimal performance and user experience on mobile devices**
+  - **Test and optimize for mobile before desktop**
+  - **Use mobile-first responsive design patterns**
+  - **Prioritize touch-friendly interfaces and mobile navigation**
+  - **Optimize images, loading times, and interactions for mobile**
+- **Desktop and tablet optimizations should be secondary considerations.**
+- **All new components must be mobile-responsive by default.**
+- **Document mobile-specific optimizations in the code change log.**
+
 ## [2024-06-08] New Rule: Analyze Before Editing
 
 - **Always analyze the codebase for related logic, components, and dependencies before making any code changes.**

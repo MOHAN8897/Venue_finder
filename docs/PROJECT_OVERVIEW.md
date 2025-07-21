@@ -16,11 +16,19 @@ A comprehensive Venue Submission and Management System for venue owners, admins,
 - Messaging and notification system
 - Admin and super-admin controls
 
+## Mobile-First Design Philosophy
+- **Primary Target**: Mobile devices are the main priority for this venue booking platform
+- **Design Approach**: Mobile-first responsive design with touch-optimized interfaces
+- **Performance**: Optimized for mobile loading speeds and data usage
+- **User Experience**: Prioritizes mobile navigation, touch interactions, and mobile-specific features
+- **Responsive Strategy**: Mobile → Tablet → Desktop progression in design and development
+
 ## Workflow
 - Frontend-first: All UI built with placeholder data, then connected to backend
 - All schema and code changes logged in markdown files
 - Linting and code quality enforced
 - GitHub used for version control and restore points
+- Mobile-first optimization for all features and updates
 
 ## Directory Structure
 - `src/` — Application source code

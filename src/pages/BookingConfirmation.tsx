@@ -8,6 +8,21 @@ import { CheckCircle, Calendar, Clock, MapPin, Users, CreditCard, Download, Shar
 import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 
+interface PaymentDetails {
+  id: string;
+  booking_id: string;
+  user_id: string;
+  amount: number;
+  status: string;
+  payment_method: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  razorpay_signature?: string;
+  platform_fee?: number;
+  venue_amount?: number;
+  created_at: string;
+}
+
 interface BookingDetails {
   id: string;
   venue_id: string;
@@ -24,12 +39,14 @@ interface BookingDetails {
   customer_email?: string;
   customer_phone?: string;
   created_at: string;
+  slot_ids?: string[];
   venue?: {
     id: string;
     name: string;
     address: string;
     image_urls: string[];
   };
+  payment?: PaymentDetails;
 }
 
 const BookingConfirmationPage: React.FC = () => {
@@ -43,16 +60,15 @@ const BookingConfirmationPage: React.FC = () => {
     const fetchBooking = async () => {
       try {
         setLoading(true);
-        
+        // Join bookings and payments
         const { data, error } = await supabase
           .from('bookings')
-          .select(`
-            *,
-            venue:venues(id, name, address, image_urls)
+          .select(`*,
+            venue:venues(id, name, address, image_urls),
+            payment:payments!bookings_payment_id_fkey(*)
           `)
           .eq('id', bookingId)
           .single();
-
         if (error) throw error;
         setBooking(data);
       } catch (error) {
@@ -61,7 +77,6 @@ const BookingConfirmationPage: React.FC = () => {
         setLoading(false);
       }
     };
-
     fetchBooking();
   }, [bookingId]);
 
@@ -222,6 +237,25 @@ const BookingConfirmationPage: React.FC = () => {
                 )}
 
                 <Separator />
+                {/* Payment Details - Mobile Optimized */}
+                {booking.payment && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      <span className="font-medium text-sm sm:text-base">Payment Details:</span>
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-600">
+                      <div>Payment Status: <Badge className={booking.payment.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>{booking.payment.status}</Badge></div>
+                      <div>Order ID: <span className="font-mono">{booking.payment.razorpay_order_id || '-'}</span></div>
+                      <div>Payment ID: <span className="font-mono">{booking.payment.razorpay_payment_id || '-'}</span></div>
+                      <div>Signature: <span className="font-mono">{booking.payment.razorpay_signature || '-'}</span></div>
+                      <div>Payment Method: {booking.payment.payment_method || '-'}</div>
+                      <div>Platform Fee: ₹{(booking.payment.platform_fee || 0) / 100}</div>
+                      <div>Venue Amount: ₹{(booking.payment.venue_amount || 0) / 100}</div>
+                      <div>Total Paid: ₹{(booking.payment.amount || 0) / 100}</div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Price Summary - Mobile Optimized */}
                 <div className="space-y-2">

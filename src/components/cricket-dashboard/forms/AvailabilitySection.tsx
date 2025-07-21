@@ -26,19 +26,28 @@ export function AvailabilitySection({ availability, onChange }: AvailabilitySect
               />
               {dayAvailability.available && (
                 <>
-                  <Input
-                    type="time"
-                    value={dayAvailability.start}
-                    onChange={(e) => onChange(day, 'start', e.target.value)}
-                    className="w-32"
-                  />
+                  {/* Only allow hour selection, no minutes. Use a select dropdown for hours. */}
+                  <select
+                    value={dayAvailability.start.split(':')[0] || ''}
+                    onChange={e => onChange(day, 'start', `${e.target.value}:00`)}
+                    className="w-24 border rounded px-2 py-1"
+                  >
+                    <option value="">Start</option>
+                    {[...Array(24).keys()].map(h => (
+                      <option key={h} value={h.toString().padStart(2, '0')}>{h.toString().padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
                   <span>to</span>
-                  <Input
-                    type="time"
-                    value={dayAvailability.end}
-                    onChange={(e) => onChange(day, 'end', e.target.value)}
-                    className="w-32"
-                  />
+                  <select
+                    value={dayAvailability.end.split(':')[0] || ''}
+                    onChange={e => onChange(day, 'end', `${e.target.value}:00`)}
+                    className="w-24 border rounded px-2 py-1"
+                  >
+                    <option value="">End</option>
+                    {[...Array(24).keys()].map(h => (
+                      <option key={h} value={h.toString().padStart(2, '0')}>{h.toString().padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
                 </>
               )}
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { MapPin, Clock, Users, Star, CreditCard, Calendar as CalendarIcon, ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { venueService } from '@/lib/venueService';
+import { createBookingWithPayment, processSuccessfulPayment } from '@/lib/paymentService';
+import { useAuth } from '@/hooks/useAuth';
 
 // Extended Venue interface to handle both data structures
 interface ExtendedVenue {
@@ -51,6 +53,8 @@ interface BookingFormData {
 const VenueBookingPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [venue, setVenue] = useState<ExtendedVenue | null>(null);
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
@@ -115,6 +119,31 @@ const VenueBookingPage: React.FC = () => {
     return hours * hourlyRate;
   };
 
+  const checkSlotAvailability = async (date: Date, startTime: string, endTime: string) => {
+    if (!venue) return false;
+    
+    try {
+      const { data, error } = await supabase
+        .from('venue_slots')
+        .select('*')
+        .eq('venue_id', venue.id)
+        .eq('date', date.toISOString().split('T')[0])
+        .gte('start_time', startTime)
+        .lte('end_time', endTime)
+        .eq('available', true);
+      
+      if (error) {
+        console.error('Error checking slot availability:', error);
+        return false;
+      }
+      
+      return data && data.length > 0;
+    } catch (error) {
+      console.error('Error checking slot availability:', error);
+      return false;
+    }
+  };
+
   const handleDateSelect = (date: Date | undefined) => {
     setFormData(prev => ({ ...prev, date }));
   };
@@ -140,39 +169,41 @@ const VenueBookingPage: React.FC = () => {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to book a venue",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setBookingLoading(true);
 
     try {
-      // Create booking in database
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Please login to book a venue');
+      // Check slot availability first
+      const isAvailable = await checkSlotAvailability(formData.date, formData.startTime, formData.endTime);
+      if (!isAvailable) {
+        throw new Error('Selected time slot is not available. Please choose a different time.');
       }
 
+      // Create booking using payment service
       const bookingData = {
-        venue_id: venue.id,
-        user_id: user.id,
-        start_date: formData.date.toISOString(),
-        end_date: formData.date.toISOString(),
-        start_time: formData.startTime,
-        end_time: formData.endTime,
-        total_price: calculateTotalPrice(),
-        notes: formData.specialRequests,
-        customer_name: formData.customerName,
-        customer_email: formData.customerEmail,
-        customer_phone: formData.customerPhone
+        venueId: venue.id,
+        userId: user.user_id,
+        eventDate: formData.date.toISOString().split('T')[0],
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        guestCount: formData.guests,
+        specialRequests: formData.specialRequests,
+        venueAmount: calculateTotalPrice() * 100, // Convert to paise
+        bookingType: 'hourly' as const
       };
 
-      const { data: booking, error } = await supabase
-        .from('bookings')
-        .insert([bookingData])
-        .select()
-        .single();
+      const bookingId = await createBookingWithPayment(bookingData);
 
-      if (error) throw error;
-
-      // Initialize payment
-      await initializePayment(booking.id, calculateTotalPrice());
+      // Redirect to payment page
+      navigate(`/payment/${bookingId}`);
 
     } catch (error) {
       console.error('Booking error:', error);
@@ -186,46 +217,7 @@ const VenueBookingPage: React.FC = () => {
     }
   };
 
-  const initializePayment = async (bookingId: string, amount: number) => {
-    setPaymentLoading(true);
 
-    try {
-      // For now, we'll simulate a payment gateway
-      // In production, you would integrate with Razorpay, Stripe, etc.
-      
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Update booking status
-      const { error } = await supabase
-        .from('bookings')
-        .update({ 
-          status: 'confirmed',
-          payment_status: 'paid'
-        })
-        .eq('id', bookingId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Booking Successful!",
-        description: `Your booking has been confirmed. Booking ID: ${bookingId}`,
-      });
-
-      // Redirect to booking confirmation page
-      window.location.href = `/booking-confirmation/${bookingId}`;
-
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast({
-        title: "Payment Failed",
-        description: "Failed to process payment. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -454,10 +446,18 @@ const VenueBookingPage: React.FC = () => {
                     <span>Rate per hour:</span>
                     <span>₹{venue.price_per_hour || venue.hourly_rate}</span>
                   </div>
+                  <div className="flex justify-between text-sm sm:text-base">
+                    <span>Venue Amount:</span>
+                    <span>₹{calculateTotalPrice()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm sm:text-base">
+                    <span>Platform Fee:</span>
+                    <span>₹35</span>
+                  </div>
                   <Separator />
                   <div className="flex justify-between font-semibold text-lg sm:text-xl">
                     <span>Total Amount:</span>
-                    <span>₹{calculateTotalPrice()}</span>
+                    <span>₹{calculateTotalPrice() + 35}</span>
                   </div>
                 </div>
 
@@ -479,16 +479,16 @@ const VenueBookingPage: React.FC = () => {
                 {/* Payment Button - Mobile Optimized */}
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700 h-12 sm:h-10 text-sm sm:text-base"
-                  disabled={paymentLoading || !formData.date || !formData.startTime || !formData.endTime}
+                  disabled={bookingLoading || !formData.date || !formData.startTime || !formData.endTime}
                   onClick={handleBookingSubmit}
                 >
-                  {paymentLoading ? (
+                  {bookingLoading ? (
                     <div className="flex items-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Processing Payment...
+                      Creating Booking...
                     </div>
                   ) : (
-                    `Pay ₹${calculateTotalPrice()}`
+                    `Proceed to Payment - ₹${calculateTotalPrice() + 35}`
                   )}
                 </Button>
 

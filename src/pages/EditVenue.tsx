@@ -12,6 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
+
+const BOOKING_TYPE_OPTIONS = [
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'daily', label: 'Per Day' },
+  { value: 'both', label: 'Both' }
+];
 
 const EditVenue: React.FC = () => {
   const { venueId } = useParams<{ venueId: string }>();
@@ -25,6 +32,7 @@ const EditVenue: React.FC = () => {
   const [editingSubvenue, setEditingSubvenue] = useState<Subvenue | null>(null);
   const [subvenueForm, setSubvenueForm] = useState<Partial<Subvenue>>({});
   const [subvenueSaving, setSubvenueSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchVenue = async () => {
@@ -73,6 +81,19 @@ const EditVenue: React.FC = () => {
 
   const handleSave = async () => {
     if (!venue || !venueId) return;
+    // Validation for booking_type and required fields
+    if (!formData.booking_type) {
+      setValidationError('Please select a booking type.');
+      return;
+    }
+    if ((formData.booking_type === 'hourly' || formData.booking_type === 'both')) {
+      // Example: require at least one time slot/availability (implement your own logic)
+      if (!formData.availability || formData.availability.length === 0) {
+        setValidationError('Please fill time slot availability for each active day.');
+        return;
+      }
+    }
+    setValidationError(null);
     setSaving(true);
     try {
       const updated = await venueService.updateVenue(venueId, formData);
@@ -187,6 +208,27 @@ const EditVenue: React.FC = () => {
               }}
               className="space-y-4 sm:space-y-6"
             >
+              {/* Booking Type Section - Always Visible */}
+              <div className="space-y-2 pb-2 border-b border-gray-200 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold">Booking Type</h3>
+                <Label className="text-sm sm:text-base font-medium">How can users book this venue?</Label>
+                <RadioGroup
+                  value={formData.booking_type || ''}
+                  onValueChange={val => setFormData(prev => ({ ...prev, booking_type: val as 'hourly' | 'daily' | 'both' }))}
+                  className="flex flex-row gap-6 pt-2"
+                >
+                  {BOOKING_TYPE_OPTIONS.map(opt => (
+                    <RadioGroupItem key={opt.value} value={opt.value} className="flex items-center gap-2">
+                      {opt.label}
+                    </RadioGroupItem>
+                  ))}
+                </RadioGroup>
+              </div>
+              {/* Validation Error */}
+              {validationError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">{validationError}</div>
+              )}
+              {/* Existing dynamic fields */}
               {venueConfig.fields.map((field: VenueField) => {
                 const value = formData[field.id as keyof Venue] ?? '';
                 switch (field.type) {
@@ -254,7 +296,22 @@ const EditVenue: React.FC = () => {
                     );
                 }
               })}
-              {/* Availability section here (existing) */}
+              {/* Time Slot Availability Section (conditional) */}
+              {(formData.booking_type === 'hourly' || formData.booking_type === 'both') && (
+                <div className="space-y-2">
+                  <Label className="text-sm sm:text-base font-medium">Time Slot Availability <span className="text-red-500">*</span></Label>
+                  {/* Implement your time slot availability UI here, e.g., a table or grid for each day/time */}
+                  <div className="text-xs text-muted-foreground">(This section is required for Hourly or Both booking types. Please fill time slots for each active day.)</div>
+                  {/* Example placeholder: */}
+                  <Textarea
+                    value={formData.availability ? formData.availability.join(', ') : ''}
+                    onChange={e => setFormData(prev => ({ ...prev, availability: e.target.value.split(',').map(s => s.trim()) }))}
+                    placeholder="e.g. Monday 09:00-18:00, Tuesday 10:00-17:00, ..."
+                    rows={3}
+                  />
+                </div>
+              )}
+              {/* If Per Day is selected, time slot section is hidden/disabled */}
 
               {/* Subvenues/Spaces Section - Mobile Optimized */}
               <div>

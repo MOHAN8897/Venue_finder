@@ -2,12 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { venueService } from '@/lib/venueService';
 import { reviewService } from '@/lib/reviewService';
-import ImageCarousel from '@/components/venue-detail/ImageCarousel';
-import VenueDescription from '@/components/venue-detail/VenueDescription';
-import VenueAmenities from '@/components/venue-detail/VenueAmenities';
-import VenueMap from '@/components/venue-detail/VenueMap';
+import { Button } from '@/components/ui/button';
+import EnhancedImageCarousel from '@/components/venue-detail/EnhancedImageCarousel';
+import VenueDetailsSection from '@/components/venue-detail/VenueDetailsSection';
+import SlotBasedBookingCalendar from '@/components/venue-detail/SlotBasedBookingCalendar';
+import MobileBookingModal from '@/components/venue-detail/MobileBookingModal';
 import VenueReviews from '@/components/venue-detail/VenueReviews';
-import VenueBooking from '@/components/venue-detail/VenueBooking';
+import { useAuth } from '@/hooks/useAuth';
+import { createBookingWithPayment } from '@/lib/paymentService';
+import { useNavigate } from 'react-router-dom';
+import { Calendar } from '@/components/ui/calendar';
+import BookingCalendar from '@/components/venue-detail/BookingCalendar';
 
 // Extended Venue interface to handle both data structures
 interface ExtendedVenue {
@@ -36,15 +41,26 @@ interface ExtendedVenue {
   google_maps_link?: string;
   latitude?: number;
   longitude?: number;
+  booking_type?: 'hourly' | 'daily' | 'both'; // Added booking_type
   [key: string]: any; // Allow additional properties
 }
 
 const VenueDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [venue, setVenue] = useState<ExtendedVenue | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showMobileBooking, setShowMobileBooking] = useState(false);
+  // Removed unused selectedBookingType state
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
+  // Add state for daily booking fields
+  const [dailyGuests, setDailyGuests] = useState<number>(1);
+  const [dailySpecialRequests, setDailySpecialRequests] = useState<string>('');
+  // Add state for booked daily dates
+  const [bookedDates, setBookedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!id) return;
@@ -81,6 +97,21 @@ const VenueDetailPage: React.FC = () => {
     };
 
     fetchVenueData();
+
+    // Fetch booked daily dates for this venue
+    const fetchBookedDates = async () => {
+      try {
+        const { data, error } = await venueService.getDailyBookingsForVenue(id);
+        if (!error && data) {
+          // Collect all eventDate values as YYYY-MM-DD
+          const dates = new Set(data.map((b: any) => b.event_date));
+          setBookedDates(dates);
+        }
+      } catch (err) {
+        // Ignore errors for now
+      }
+    };
+    fetchBookedDates();
   }, [id]);
 
   if (loading) {
@@ -118,39 +149,125 @@ const VenueDetailPage: React.FC = () => {
                  venue.images?.length ? venue.images : 
                  ['https://via.placeholder.com/800x400?text=Venue+Image'];
 
+  const venueName = venue.venue_name || venue.name || 'Venue';
+
+  // Handler for slot-based booking submission
+  interface Slot {
+    id: string;
+    time: string;
+  }
+  interface SlotBookingData {
+    date: Date;
+    selectedSlots: Slot[];
+    guests: number;
+    totalPrice: number;
+  }
+  const handleSlotBookingSubmit = async (bookingData: SlotBookingData): Promise<string | void> => {
+    if (!venue) return;
+    if (!user || !user.id) {
+      setError('You must be logged in to book. (User profile not loaded)');
+      alert('You must be logged in to book. Please sign in again.');
+      return;
+    }
+    // Prepare booking payload
+    const slotIds = bookingData.selectedSlots.map((slot) => slot.id);
+    const bookingPayload = {
+      venueId: venue.id,
+      userId: user.id,
+      eventDate: bookingData.date.toISOString().split('T')[0],
+      startTime: bookingData.selectedSlots[0]?.time || '',
+      endTime: bookingData.selectedSlots[bookingData.selectedSlots.length - 1]?.time || '',
+      guestCount: bookingData.guests,
+      specialRequests: '',
+      venueAmount: bookingData.totalPrice * 100, // paise
+      bookingType: 'hourly' as const,
+      slot_ids: slotIds
+    };
+    // Save to localStorage instead of DB
+    localStorage.setItem('pendingBooking', JSON.stringify(bookingPayload));
+    // Navigate to payment page (no bookingId yet)
+    navigate('/payment');
+  };
+
+  // Determine allowed booking types
+  const allowedBookingType = venue?.booking_type || 'hourly';
+  // Removed unused showBookingTypeSelector
+
+  // All user/profile checks are now handled in booking handlers, so this component always returns JSX
+
   return (
-    <div className="bg-gray-50 min-h-screen">
-      {/* Image Carousel at the top */}
-      <ImageCarousel images={images} venueName={venue.venue_name || venue.name || 'Venue'} />
+    <div className="min-h-screen bg-gray-50">
+      {/* Enhanced Image Carousel - Full Width */}
+      <div className="w-full">
+        <EnhancedImageCarousel images={images} venueName={venueName} />
+      </div>
       
-      {/* Main content - Mobile Optimized */}
-      <div className="max-w-7xl mx-auto py-4 sm:py-6 md:py-8 px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-          {/* Left column - Venue details */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
-            <VenueDescription venue={venue} />
-            <VenueAmenities amenities={venue.amenities || []} />
-            <VenueMap mapEmbedCode={venue.map_embed_code || venue.google_maps_link || ''} />
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Desktop Layout - 2 Column Grid */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-8">
+          {/* Left Column - Venue Details */}
+          <div className="lg:col-span-2 space-y-8">
+            <VenueDetailsSection venue={venue} />
             <VenueReviews
               reviews={reviews}
               averageRating={venue.avg_rating || venue.rating || 0}
               reviewCount={venue.rating_count || venue.review_count || 0}
             />
           </div>
-          
-          {/* Right column - Booking system */}
+          {/* Right Column - Booking Calendar */}
           <div className="lg:col-span-1">
-            <VenueBooking 
-              pricePerHour={venue.price_per_hour || venue.hourly_rate || 0}
-              venueId={venue.id}
-              venueName={venue.venue_name || venue.name}
-              capacity={venue.capacity}
-              rating={venue.avg_rating || venue.rating || 0}
+            <div className="sticky top-8 space-y-4">
+              {venue && (
+                <BookingCalendar
+                  bookingType={venue.booking_type || 'hourly'}
+                  venue={venue}
+                  user={user}
+                  bookedDates={bookedDates}
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  dailyGuests={dailyGuests}
+                  setDailyGuests={setDailyGuests}
+                  dailySpecialRequests={dailySpecialRequests}
+                  setDailySpecialRequests={setDailySpecialRequests}
+                  handleSlotBookingSubmit={handleSlotBookingSubmit}
+                  navigate={navigate}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Layout - Single Column */}
+        <div className="lg:hidden space-y-8 pb-24">
+          <VenueDetailsSection venue={venue} />
+          <VenueReviews
+            reviews={reviews}
+            averageRating={venue.avg_rating || venue.rating || 0}
               reviewCount={venue.rating_count || venue.review_count || 0}
             />
+          
+          {/* Mobile Book Now Button */}
+          <div className="sticky bottom-4 left-4 right-4 z-40">
+            <Button
+              onClick={() => setShowMobileBooking(true)}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 text-lg shadow-lg"
+            >
+              Book Now - ₹{venue.price_per_hour || venue.hourly_rate || 0}/hour
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Booking Modal */}
+      <MobileBookingModal
+        venueId={venue.id}
+        venueName={venueName}
+        pricePerHour={venue.price_per_hour || venue.hourly_rate || 0}
+        capacity={venue.capacity}
+        isOpen={showMobileBooking}
+        onClose={() => setShowMobileBooking(false)}
+      />
     </div>
   );
 };

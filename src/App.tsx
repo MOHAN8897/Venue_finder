@@ -104,6 +104,7 @@ const ManageYourPageAnalytics = lazy(() => import('./pages/cricket-dashboard/Ana
 const ManageYourPageSettings = lazy(() => import('./pages/cricket-dashboard/SettingsPage'));
 const BrowseVenues = lazy(() => import('./pages/BrowseVenues'));
 const VenueCardDemo = lazy(() => import('./pages/VenueCardDemo'));
+const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -176,6 +177,8 @@ const AppWithTabOverlay: React.FC = () => {
             <Route path="/venue/:id" element={<MainLayout><VenueDetail /></MainLayout>} />
             <Route path="/book/:id" element={<MainLayout><VenueBooking /></MainLayout>} />
             <Route path="/booking-confirmation/:bookingId" element={<MainLayout><BookingConfirmation /></MainLayout>} />
+            <Route path="/payment" element={<MainLayout><PaymentPage /></MainLayout>} />
+            <Route path="/payment/:bookingId" element={<MainLayout><PaymentPage /></MainLayout>} />
             <Route path="/venue-test" element={<MainLayout><VenueTest /></MainLayout>} />
             <Route path="/unauthorized" element={<MainLayout><Unauthorized /></MainLayout>} />
             <Route path="/list-venue" element={<MainLayout><ListVenue /></MainLayout>} />

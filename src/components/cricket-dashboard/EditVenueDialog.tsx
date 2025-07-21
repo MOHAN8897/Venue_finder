@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { venueService, Subvenue } from '@/lib/venueService';
 import { Dialog as Modal, DialogContent as ModalContent } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface EditVenueDialogProps {
   venue: Venue;
@@ -34,6 +35,12 @@ interface VenueWithFeatured extends Venue {
 interface SubvenueWithImage extends Subvenue {
   featured_image?: string;
 }
+
+const BOOKING_TYPE_OPTIONS = [
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'daily', label: 'Per Day' },
+  { value: 'both', label: 'Both' }
+];
 
 export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVenueDialogProps) {
   // Define a type for formData
@@ -55,6 +62,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
     videos: string[];
     mapEmbedCode: string;
     featuredImage: string;
+    bookingType: 'hourly' | 'daily' | 'both';
   }
   // Helper to normalize availability
   const normalizeAvailability = (input: any): Availability => {
@@ -84,6 +92,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
     videos: [...(venue.videos || [])],
     mapEmbedCode: (venue.map_embed_code ?? ''),
     featuredImage: (venue as any).featured_image || (venue.photos && venue.photos[0]) || '',
+    bookingType: (venue as any).booking_type || 'hourly',
   });
 
   useEffect(() => {
@@ -102,6 +111,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
       videos: [...(venue.videos || [])],
       mapEmbedCode: (venue.map_embed_code ?? ''),
       featuredImage: (venue as any).featured_image || (venue.photos && venue.photos[0]) || '',
+      bookingType: (venue as any).booking_type || 'hourly',
     });
   }, [venue]);
 
@@ -144,6 +154,9 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
     }));
   };
 
+  // Add state for validation error
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.mapEmbedCode.trim()) {
@@ -161,6 +174,17 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
       }
       uploadedUrls = uploadResults.map((r: any) => r.url!);
     }
+    // Validate weekly availability based on booking type
+    if (formData.bookingType === 'hourly' || formData.bookingType === 'both') {
+      const hasValidSlot = Object.values(formData.weeklyAvailability).some(
+        day => day.available && day.start && day.end
+      );
+      if (!hasValidSlot) {
+        setAvailabilityError('For Hourly or Both, please set at least one active day with start and end time.');
+        return;
+      }
+    }
+    setAvailabilityError(null);
     // Convert availability object to array of available days for DB (legacy)
     const availableDays: string[] = Object.entries(formData.availability)
       .filter(([day, val]) => val.available)
@@ -188,6 +212,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
       videos: formData.videos,
       map_embed_code: formData.mapEmbedCode,
       featured_image: formData.featuredImage,
+      booking_type: formData.bookingType,
     };
     try {
       const { error } = await supabase.from("venues").update({
@@ -205,6 +230,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
         videos: updatedVenue.videos,
         map_embed_code: updatedVenue.map_embed_code,
         featured_image: updatedVenue.featured_image,
+        booking_type: updatedVenue.booking_type,
       }).eq("id", updatedVenue.id);
       if (error) throw error;
       onUpdate({ ...updatedVenue, status: safeStatus as 'inactive' | 'active' | 'maintenance' });
@@ -504,6 +530,23 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
             )}
           </div>
 
+          {/* Move Booking Type selector here, just above AvailabilitySection */}
+          <div className="space-y-2 pb-2 border-b border-gray-200 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold">Booking Type</h3>
+            <Label className="text-sm sm:text-base font-medium">How can users book this venue?</Label>
+            <RadioGroup
+              value={formData.bookingType}
+              onValueChange={val => setFormData(prev => ({ ...prev, bookingType: val as 'hourly' | 'daily' | 'both' }))}
+              className="flex flex-col gap-3 pt-2"
+            >
+              {BOOKING_TYPE_OPTIONS.map(opt => (
+                <label key={opt.value} className="flex items-center gap-3 cursor-pointer hover:bg-accent/30 rounded px-2 py-2 transition-colors">
+                  <RadioGroupItem value={opt.value} className="h-5 w-5 border-2 border-primary focus:ring-2 focus:ring-primary" />
+                  <span className="text-base">{opt.label}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
           <AvailabilitySection
             availability={formData.weeklyAvailability}
             onChange={(day, field, value) => setFormData(prev => ({
@@ -517,6 +560,14 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
               }
             }))}
           />
+          {formData.bookingType === 'daily' && (
+            <div className="text-xs text-muted-foreground mt-1">(Optional: Set weekly availability for info only. Not required for daily booking.)</div>
+          )}
+          {(formData.bookingType === 'hourly' || formData.bookingType === 'both') && (
+            <div className="text-xs mt-1" style={{ color: availabilityError ? '#dc2626' : '#64748b' }}>
+              {availabilityError || 'Required: Set at least one active day with start and end time for hourly/both booking.'}
+            </div>
+          )}
 
           <div className="mt-8">
             <div className="flex items-center justify-between mb-2">

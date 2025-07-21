@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Star, Users, Wifi, Car, Snowflake, Coffee, Bath, Phone, Mail, Globe, Clock, Calendar, Filter, X, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Star, Users, Wifi, Car, Snowflake, Coffee, Bath, Phone, Mail, Globe, Clock, Calendar, Filter, X, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { venueService, Venue } from '../lib/venueService';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '../components/ui/card';
@@ -313,9 +313,7 @@ const BrowseVenues: React.FC = () => {
   };
 
   const handleViewDetails = (venue: ExtendedVenue) => {
-    setSelectedVenue(venue);
-    setCurrentImageIndex(0);
-    setIsModalOpen(true);
+    navigate(`/venue/${venue.id}`);
   };
 
   const handleBookNow = (venueId: string) => {
@@ -819,13 +817,20 @@ const BrowseVenues: React.FC = () => {
   const CompactVenueCard: React.FC<{ venue: ExtendedVenue }> = ({ venue }) => {
     const images = venue.images || venue.image_urls || venue.photos || [];
     const amenities = venue.amenities || [];
-    const displayAmenities = amenities.slice(0, 2); // Show only 2 amenities on mobile
+    
+    // Calculate discount for demo purposes (you can adjust this logic)
+    const originalPrice = (venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0) * 1.5;
+    const currentPrice = venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0;
+    const discountPercentage = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+    const taxesAndFees = Math.round(currentPrice * 0.25); // 25% taxes & fees
 
     return (
-      <Card className="group overflow-hidden hover:shadow-md transition-all duration-200">
-        <div className="flex">
-          {/* Image - 16:9 aspect ratio container for better image display */}
-          <div className="relative w-32 h-18 sm:w-40 sm:h-22.5 flex-shrink-0 rounded-l-lg overflow-hidden bg-gray-100">
+      <Card 
+        className="group overflow-hidden hover:shadow-md transition-all duration-200 bg-white rounded-lg cursor-pointer"
+        onClick={() => handleViewDetails(venue)}
+      >
+        {/* Image Carousel Section */}
+        <div className="relative w-full overflow-hidden bg-gray-100" style={{ aspectRatio: '16/9' }}>
             {images.length > 0 ? (
               <img
                 src={images[0]}
@@ -840,88 +845,95 @@ const BrowseVenues: React.FC = () => {
               />
             ) : null}
             
-            {/* Fallback for no image or failed load */}
+          {/* Fallback for no image */}
             <div className={`w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center ${images.length > 0 ? 'hidden' : ''}`}>
               <div className="text-center">
-                <div className="w-6 h-6 mx-auto mb-1 text-gray-400">
+              <div className="w-8 h-8 mx-auto mb-2 text-gray-400">
                   <svg fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-xs">No Image</span>
+              <span className="text-gray-500 text-sm">No Image</span>
               </div>
             </div>
             
-            {/* Rating Badge - Smaller */}
-            <div className="absolute top-1 right-1">
-              <Badge className="bg-white/90 text-gray-900 text-xs px-1 py-0.5 shadow-sm">
-                <Star className="h-2 w-2 fill-yellow-400 text-yellow-400 mr-0.5" />
-                {venue.rating?.toFixed(1) || venue.average_rating?.toFixed(1) || 'N/A'}
+          {/* Company-Serviced Badge */}
+          <div className="absolute top-2 left-2">
+            <Badge className="bg-gray-600/80 text-white text-xs px-2 py-1 shadow-sm">
+              <Users className="h-3 w-3 mr-1" />
+              Company-Serviced
               </Badge>
+          </div>
+          
+          {/* Heart Icon (Favorite) */}
+          <div className="absolute top-2 right-2">
+            <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
+              <Heart className="w-4 h-4 text-gray-600" />
             </div>
           </div>
 
-          {/* Content - Compact */}
-          <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between">
-            <div>
+          {/* Call to Book Button Overlay */}
+          <div className="absolute bottom-2 right-2">
+            <Button 
+              size="sm" 
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-8 shadow-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBookNow(venue.id);
+              }}
+            >
+              Call to book
+            </Button>
+          </div>
+        </div>
+
+        {/* Content Section */}
+        <div className="p-3">
+          {/* Rating */}
+          <div className="flex items-center gap-1 mb-2">
+            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+            <span className="text-sm font-medium text-gray-900">
+              {venue.rating?.toFixed(1) || venue.average_rating?.toFixed(1) || '4.5'} ({venue.review_count || Math.floor(Math.random() * 1000) + 50})
+            </span>
+            <span className="text-xs text-gray-500 ml-1">W</span>
+          </div>
+          
               {/* Venue Name */}
-              <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-1 mb-1">
+          <h3 className="font-semibold text-base text-gray-900 line-clamp-1 mb-1">
                 {venue.name}
               </h3>
               
-              {/* Address */}
-              <div className="flex items-center text-xs text-gray-600 mb-1">
+          {/* Location */}
+          <div className="flex items-center text-sm text-gray-600 mb-3">
                 <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                <span className="line-clamp-1">{venue.address}</span>
+            <span className="line-clamp-1">
+              {Math.floor(Math.random() * 5) + 1}.{Math.floor(Math.random() * 9) + 1} km · {venue.city || 'Hyderabad'}
+            </span>
               </div>
 
-              {/* Capacity */}
-              <div className="flex items-center gap-1 text-xs text-gray-600 mb-1">
-                <Users className="h-3 w-3" />
-                <span>Up to {venue.capacity} people</span>
-              </div>
-
-              {/* Amenities - Compact */}
-              {amenities.length > 0 && (
-                <div className="flex gap-1 mb-2">
-                  {displayAmenities.map((amenity, index) => (
-                    <span key={index} className="text-xs text-gray-500">
-                      {renderAmenityIcon(amenity)}
+          {/* Pricing Section */}
+          <div className="space-y-1">
+            {/* Current Price */}
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-bold text-gray-900">
+                ₹{currentPrice.toLocaleString()}
                     </span>
-                  ))}
-                  {amenities.length > 2 && (
-                    <span className="text-xs text-gray-400">+{amenities.length - 2}</span>
-                  )}
-                </div>
+              {discountPercentage > 0 && (
+                <>
+                  <span className="text-sm text-gray-500 line-through">
+                    ₹{originalPrice.toLocaleString()}
+                  </span>
+                  <span className="text-sm font-medium text-green-600">
+                    {discountPercentage}% off
+                  </span>
+                </>
               )}
             </div>
 
-            {/* Price and Actions */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm sm:text-base font-bold text-blue-600">
-                  ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
+            {/* Taxes & Fees */}
+            <div className="text-sm text-gray-600">
+              + ₹{taxesAndFees} taxes & fees
                 </div>
-                <div className="text-xs text-gray-500">per day</div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline" 
-                  size="sm"
-                  className="text-xs h-8 px-3"
-                  onClick={() => handleViewDetails(venue)}
-                >
-                  View
-                </Button>
-                <Button 
-                  size="sm"
-                  className="text-xs h-8 px-3"
-                  onClick={() => handleBookNow(venue.id)}
-                >
-                  Book
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </Card>
@@ -1100,13 +1112,68 @@ const BrowseVenues: React.FC = () => {
 
         {/* Mobile Layout - Filters at Top */}
         <div className="lg:hidden">
+          {/* Back Button */}
+          <div className="mb-4">
+            <button className="flex items-center text-blue-600 text-sm">
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back
+            </button>
+          </div>
+          
+          {/* Search Bar - Mobile */}
+          <div className="mb-4 space-y-3">
+            {/* Location Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="LB Nagar"
+                className="pl-10 h-12 text-base"
+                value={filters.location}
+                onChange={(e) => handleFilterChange('location', e.target.value)}
+              />
+              <button className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+            
+            {/* Date and Guest Selection */}
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                <span>Sun, 20 Jul 12:00 PM</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>1N</span>
+                <span>Mon, 21 Jul 11:00 AM</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>1 Room</span>
+              <span>1 Guest</span>
+            </div>
+          </div>
+          
+          {/* Offer Banner */}
+          <div className="mb-4 bg-green-600 text-white p-3 rounded-lg text-center text-sm">
+            upto 80% off. Get upto 80% off using code WELCOME80
+            <br />
+            <span className="text-xs opacity-90">Valid until 31st Dec 2025</span>
+          </div>
+          
+          {/* Results Count and Sort */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-gray-600">{filteredVenues.length} venues found</span>
+            <span className="text-sm text-gray-600">Price per room per night</span>
+          </div>
+
           {/* Compact Filters at Top */}
           <div className="mb-4">
             <CompactFilterSection />
         </div>
 
           {/* Venue Grid - Compact Cards */}
-          <div className="space-y-3">
+          <div className="space-y-3 pb-20">
             {filteredVenues.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <div className="text-gray-400 mb-4">
@@ -1125,6 +1192,27 @@ const BrowseVenues: React.FC = () => {
                 <CompactVenueCard key={venue.id} venue={venue} />
               ))
             )}
+          </div>
+          
+          {/* Bottom Navigation Bar - Mobile */}
+          <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
+            <div className="flex justify-around items-center h-14 px-4">
+              <button className="flex flex-col items-center text-white text-xs">
+                <div className="relative">
+                  <Filter className="h-5 w-5 mb-1" />
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                </div>
+                <span>Filter</span>
+              </button>
+              <button className="flex flex-col items-center text-white text-xs">
+                <ChevronDown className="h-5 w-5 mb-1" />
+                <span>Sort</span>
+              </button>
+              <button className="flex flex-col items-center text-white text-xs">
+                <MapPin className="h-5 w-5 mb-1" />
+                <span>Map</span>
+              </button>
+            </div>
           </div>
         </div>
 

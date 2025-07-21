@@ -48,6 +48,9 @@ export interface Venue {
   rejection_reason?: string;
   approval_status?: 'pending' | 'approved' | 'rejected';
   is_approved?: boolean;
+  // --- Added for booking type/availability logic ---
+  booking_type?: 'hourly' | 'daily' | 'both';
+  availability?: string[];
 }
 
 interface VenueWithOwner extends Venue {
@@ -439,21 +442,51 @@ export const venueService = {
     }
   },
 
+  /**
+   * Generate slots for a venue for the next 30 days using the Supabase backend function.
+   * Calls the generate_slots_for_venue SQL function via RPC.
+   */
+  generateVenueSlots: async (
+    venueId: string,
+    bookingType: 'hourly' | 'daily' | 'both',
+    weeklyAvailability: Record<string, { start: string; end: string; available: boolean }> = {},
+    pricePerHour?: number,
+    pricePerDay?: number
+  ) => {
+    if (!venueId || !bookingType) return;
+    // Call the backend function to generate slots
+    await supabase.rpc('generate_slots_for_venue', {
+      venue_id: venueId,
+      booking_type: bookingType,
+      weekly_availability: weeklyAvailability,
+      price_per_hour: pricePerHour || 0,
+      price_per_day: pricePerDay || 0
+    });
+  },
+
   // Update venue
   async updateVenue(venueId: string, updatedData: Partial<Venue>): Promise<Venue | null> {
     const { data, error } = await supabase
       .from('venues')
       .update(updatedData)
       .eq('id', venueId)
-      .select('*')
+      .select()
       .single();
-
     if (error) {
       console.error('Error updating venue:', error);
-      throw error;
+      return null;
     }
-
-    return data as Venue | null;
+    // After update, generate slots if booking_type and availability are present
+    if (updatedData.booking_type && updatedData.availability) {
+      await venueService.generateVenueSlots(
+        venueId,
+        updatedData.booking_type,
+        updatedData.availability,
+        updatedData.price_per_hour,
+        updatedData.price_per_day
+      );
+    }
+    return data;
   },
 
   // Delete venue
@@ -554,6 +587,20 @@ export const venueService = {
     } catch (error) {
       console.error('Error in deleteSubvenue:', error);
       return false;
+    }
+  },
+
+  // Fetch all daily bookings for a venue (for disabling booked dates)
+  getDailyBookingsForVenue: async (venueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('event_date')
+        .eq('venue_id', venueId)
+        .eq('booking_type', 'daily');
+      return { data, error };
+    } catch (error) {
+      return { data: [], error };
     }
   }
 }; 
