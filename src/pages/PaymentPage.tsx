@@ -113,8 +113,21 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
-      // Generate proper receipt ID
-      const receiptId = bookingId ? `booking_${bookingId}` : `temp_booking_${Date.now()}_${user.id}`;
+      // Generate proper receipt ID (max 40 chars for Razorpay)
+      const generateReceiptId = () => {
+        if (bookingId) {
+          const id = `booking_${bookingId}`;
+          return id.length <= 40 ? id : `bkg_${bookingId}`;
+        } else {
+          // Format: temp_timestamp_userShort (ensures < 40 chars)
+          const timestamp = Date.now();
+          const userShort = user.id.slice(-8);
+          return `temp_${timestamp}_${userShort}`;
+        }
+      };
+      
+      const receiptId = generateReceiptId();
+      console.log('Generated receipt ID:', receiptId, 'Length:', receiptId.length);
       
       // Validate and log payload before creating order
       validateAndLogOrderPayload({
