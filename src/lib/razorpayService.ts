@@ -105,7 +105,16 @@ export const createRazorpayOrder = async (params: CreateOrderParams): Promise<Ra
       receipt: params.receipt || `receipt_${Date.now()}`
     });
     // Call the Edge Function endpoint
-    const response = await fetch('/functions/v1/create-razorpay-order', {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`;
+    console.log('Calling edge function URL:', url);
+    console.log('Request payload:', {
+      amount: params.amount,
+      currency: params.currency || razorpayConfig.currency,
+      receipt: params.receipt || `receipt_${Date.now()}`,
+      notes: params.notes
+    });
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,8 +126,12 @@ export const createRazorpayOrder = async (params: CreateOrderParams): Promise<Ra
       notes: params.notes
       }),
     });
+    console.log('Edge function response status:', response.status);
     const data = await response.json();
+    console.log('Edge function response data:', data);
+    
     if (!response.ok || !data.success) {
+      console.error('Edge function error:', data);
       throw new Error(data.error || 'Failed to create payment order');
     }
     const order = data.order;

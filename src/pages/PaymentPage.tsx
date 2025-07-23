@@ -301,36 +301,92 @@ const PaymentPage: React.FC = () => {
                     <span className="text-gray-600">Venue:</span>
                     <span className="font-medium">{venue?.venue_name || booking?.venueName || 'Venue'}</span>
                   </div>
+                  
+                  {/* Handle multiple dates for daily booking */}
+                  {booking?.bookingType === 'daily' && booking?.eventDates && booking.eventDates.length > 1 ? (
+                    <div>
+                      <span className="text-gray-600">Dates:</span>
+                      <div className="ml-2 text-sm">
+                        {booking.eventDates.map((date, index) => (
+                          <div key={index} className="flex justify-between">
+                            <span>{new Date(date).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                        <div className="text-xs text-gray-500 mt-1">
+                          {booking.eventDates.length} day(s) selected
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Date:</span>
+                      <span className="font-medium">
+                        {booking?.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Booking Type Display */}
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Date:</span>
-                    <span className="font-medium">{booking?.eventDate ? format(new Date(booking.eventDate), 'PPP') : 'N/A'}</span>
+                    <span className="text-gray-600">Booking Type:</span>
+                    <span className="font-medium capitalize">{booking?.bookingType || 'N/A'}</span>
                   </div>
+                  
                   {/* Show slot times if slots exist */}
                   {slots.length > 0 && (
                     <div>
-                      <span className="text-gray-600">Slots:</span>
-                      <ul className="ml-2 text-sm">
+                      <span className="text-gray-600">Time Slots:</span>
+                      <div className="ml-2 text-sm space-y-1">
                         {slots.map(slot => (
-                          <li key={slot.id} className="flex justify-between">
-                            <span>{slot.start_time} - {slot.end_time}</span>
-                            <span>₹{String(slot.price)}</span>
-                          </li>
+                          <div key={slot.id} className="flex justify-between">
+                            <span>{new Date(`2000-01-01T${slot.start_time}`).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })} - {new Date(`2000-01-01T${slot.end_time}`).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}</span>
+                            <span>₹{slot.price}</span>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
-                  {/* Fallback to booking start/end time if no slots */}
-                  {slots.length === 0 && (
+                  
+                  {/* Fallback to booking start/end time if no slots and not daily */}
+                  {slots.length === 0 && booking?.bookingType !== 'daily' && booking?.startTime && booking?.endTime && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Slots:</span>
-                      <span className="font-medium">{booking?.startTime + ' - ' + booking?.endTime || 'N/A'}</span>
+                      <span className="text-gray-600">Time:</span>
+                      <span className="font-medium">
+                        {new Date(`2000-01-01T${booking.startTime}`).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })} - {new Date(`2000-01-01T${booking.endTime}`).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
                     </div>
                   )}
+                  
                   <div className="flex justify-between">
                     <span className="text-gray-600">Guests:</span>
                     <span className="font-medium">{booking?.guestCount || 'N/A'}</span>
                   </div>
+                  
+                  {/* Special Requests */}
+                  {booking?.specialRequests && (
+                    <div>
+                      <span className="text-gray-600">Special Requests:</span>
+                      <p className="text-sm text-gray-800 mt-1">{booking.specialRequests}</p>
+                    </div>
+                  )}
                 </div>
+                
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Venue Amount:</span>
@@ -340,8 +396,8 @@ const PaymentPage: React.FC = () => {
                     <span className="text-gray-600">Platform Fee:</span>
                     <span>{formatAmount(platformFee / 100)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-semibold">
-                    <span>Total:</span>
+                  <div className="flex justify-between text-lg font-semibold border-t pt-2">
+                    <span>Total Amount:</span>
                     <span className="text-green-600">{formatAmount(paymentAmount / 100)}</span>
                   </div>
                 </div>

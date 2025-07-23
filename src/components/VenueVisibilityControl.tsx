@@ -9,6 +9,8 @@ import { Venue } from '../lib/venueService';
 import { Calendar as CalendarIcon, Power, PowerOff } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
+import ReactCalendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 interface VenueVisibilityControlProps {
   venue: Venue;
@@ -74,11 +76,38 @@ const VenueVisibilityControl: React.FC<VenueVisibilityControlProps> = ({
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                            mode="range"
-                            selected={dateRange}
-                            onSelect={setDateRange}
-                            numberOfMonths={2}
+                        <ReactCalendar
+                            selectRange={true}
+                            value={dateRange.from && dateRange.to ? [dateRange.from, dateRange.to] : dateRange.from ? dateRange.from : null}
+                            onChange={(value) => {
+                                if (Array.isArray(value)) {
+                                    setDateRange({ from: value[0] ?? undefined, to: value[1] ?? undefined });
+                                } else if (value instanceof Date) {
+                                    setDateRange({ from: value, to: undefined });
+                                } else {
+                                    setDateRange({ from: undefined, to: undefined });
+                                }
+                            }}
+                            minDate={new Date(new Date().setHours(0,0,0,0))}
+                            tileDisabled={({ date }) => date < new Date(new Date().setHours(0,0,0,0))}
+                            tileClassName={({ date }) => {
+                                const isSelected = dateRange.from && dateRange.to && date >= dateRange.from && date <= dateRange.to;
+                                if (isSelected) {
+                                    return 'bg-blue-500 text-white border-blue-700 border-2 scale-105 shadow-md z-10 relative';
+                                }
+                                if (date < new Date(new Date().setHours(0,0,0,0))) {
+                                    return 'opacity-40 pointer-events-none';
+                                }
+                                return 'bg-green-200 text-green-900 border-green-400 border-2';
+                            }}
+                            tileContent={({ date }) => {
+                                if (date < new Date(new Date().setHours(0,0,0,0))) {
+                                    return <span title="Date is unavailable" style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }} />;
+                                }
+                                return null;
+                            }}
+                            className="rounded-md border"
+                            showDoubleView={true}
                         />
                     </PopoverContent>
                 </Popover>

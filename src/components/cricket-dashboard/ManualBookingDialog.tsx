@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 import { CalendarDays, Clock, User, Phone, CreditCard } from "lucide-react";
 import { format } from "date-fns";
+import ReactCalendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 interface ManualBookingDialogProps {
   open: boolean;
@@ -153,11 +155,34 @@ export function ManualBookingDialog({ open, onOpenChange, boxes, onBookingCreate
               
               <div className="space-y-2">
                 <Label>Select Date *</Label>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date(Date.now() - 86400000)}
+                <ReactCalendar
+                  value={selectedDate}
+                  onChange={(value) => {
+                    const date = value as Date;
+                    if (!date) return;
+                    if (date < new Date(new Date().setHours(0,0,0,0))) {
+                      alert('Date is unavailable');
+                      return;
+                    }
+                    setSelectedDate(date);
+                  }}
+                  minDate={new Date(new Date().setHours(0,0,0,0))}
+                  tileDisabled={({ date }) => date < new Date(new Date().setHours(0,0,0,0))}
+                  tileClassName={({ date }) => {
+                    if (selectedDate && date.toDateString() === selectedDate.toDateString()) {
+                      return 'bg-blue-500 text-white border-blue-700 border-2 scale-105 shadow-md z-10 relative';
+                    }
+                    if (date < new Date(new Date().setHours(0,0,0,0))) {
+                      return 'opacity-40 pointer-events-none';
+                    }
+                    return 'bg-green-200 text-green-900 border-green-400 border-2';
+                  }}
+                  tileContent={({ date }) => {
+                    if (date < new Date(new Date().setHours(0,0,0,0))) {
+                      return <span title="Date is unavailable" style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }} />;
+                    }
+                    return null;
+                  }}
                   className="rounded-md border"
                 />
               </div>

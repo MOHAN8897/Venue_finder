@@ -10,6 +10,8 @@ import { RevenueChart } from './RevenueChart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { CalendarIcon, Download, TrendingUp, Users, Calendar as CalendarLucide, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
+import ReactCalendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 export function ReportsPage() {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -67,13 +69,38 @@ export function ReportsPage() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange.from}
-                selected={{ from: dateRange.from, to: dateRange.to }}
-                onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                numberOfMonths={2}
+              <ReactCalendar
+                selectRange={true}
+                value={dateRange.from && dateRange.to ? [dateRange.from, dateRange.to] : dateRange.from ? dateRange.from : null}
+                onChange={(value) => {
+                  if (Array.isArray(value)) {
+                    setDateRange({ from: value[0] ?? undefined, to: value[1] ?? undefined });
+                  } else if (value instanceof Date) {
+                    setDateRange({ from: value, to: undefined });
+                  } else {
+                    setDateRange({ from: undefined, to: undefined });
+                  }
+                }}
+                minDate={new Date(new Date().setHours(0,0,0,0))}
+                tileDisabled={({ date }) => date < new Date(new Date().setHours(0,0,0,0))}
+                tileClassName={({ date }) => {
+                  const isSelected = dateRange.from && dateRange.to && date >= dateRange.from && date <= dateRange.to;
+                  if (isSelected) {
+                    return 'bg-blue-500 text-white border-blue-700 border-2 scale-105 shadow-md z-10 relative';
+                  }
+                  if (date < new Date(new Date().setHours(0,0,0,0))) {
+                    return 'opacity-40 pointer-events-none';
+                  }
+                  return 'bg-green-200 text-green-900 border-green-400 border-2';
+                }}
+                tileContent={({ date }) => {
+                  if (date < new Date(new Date().setHours(0,0,0,0))) {
+                    return <span title="Date is unavailable" style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }} />;
+                  }
+                  return null;
+                }}
+                className="rounded-md border"
+                showDoubleView={true}
               />
             </PopoverContent>
           </Popover>

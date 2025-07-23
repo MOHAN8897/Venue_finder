@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import ReactCalendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 interface BookingCalendarProps {
   bookingType: 'hourly' | 'daily' | 'both';
@@ -19,19 +20,34 @@ interface BookingCalendarProps {
   navigate: any;
 }
 
-// Helper to format a Date as YYYY-MM-DD in local time
-function formatLocalYMD(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+interface SlotData {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  available: boolean;
+  price: number;
+  booked_by: string | null;
 }
+
+// Helper function to format date as YYYY-MM-DD
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+// Helper function to format time for display
+const formatTime = (timeString: string): string => {
+  return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 
 const BookingCalendar: React.FC<BookingCalendarProps> = ({
   bookingType,
   venue,
   user,
-  bookedDates,
   selectedDate,
   setSelectedDate,
   dailyGuests,
@@ -41,309 +57,429 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   handleSlotBookingSubmit,
   navigate,
 }) => {
-  // State for hourly/both
-  const [dateStatusMap, setDateStatusMap] = useState<Record<string, 'available' | 'partial' | 'booked' | 'pending'>>({});
-  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
-  const [selectedSlots, setSelectedSlots] = useState<any[]>([]);
-  const [fetchingSlots, setFetchingSlots] = useState(false);
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [availableSlots, setAvailableSlots] = useState<SlotData[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Fetch date statuses for hourly/both and daily
+  // Fetch available dates for the venue
   useEffect(() => {
-      const fetchDateStatuses = async () => {
-        // Use local date for today
-        const today = new Date();
-        const localTodayYMD = formatLocalYMD(today);
-        const end = new Date();
-        end.setDate(today.getDate() + 30);
-        const { data, error } = await supabase
-          .from('venue_slots')
-        .select('date, status')
-          .eq('venue_id', venue.id)
-          // Use localTodayYMD instead of today.toISOString().split('T')[0]
-          .gte('date', localTodayYMD)
-          .lte('date', formatLocalYMD(end));
-        if (error) return setDateStatusMap({});
-      const byDate: Record<string, { total: number, available: number, booked: number, pending: number }> = {};
-        (data || []).forEach((row: any) => {
-        if (!byDate[row.date]) byDate[row.date] = { total: 0, available: 0, booked: 0, pending: 0 };
-          byDate[row.date].total++;
-        if (row.status === 'available') byDate[row.date].available++;
-        else if (row.status === 'booked') byDate[row.date].booked++;
-        else if (row.status === 'pending') byDate[row.date].pending++;
-        });
-      const statusMap: Record<string, 'available' | 'partial' | 'booked' | 'pending'> = {};
-        Object.entries(byDate).forEach(([date, info]) => {
-        if (bookingType === 'daily') {
-          if (info.booked === info.total) statusMap[date] = 'booked';
-          else if (info.pending > 0) statusMap[date] = 'pending';
-          else statusMap[date] = 'available';
-        } else {
-          if (info.booked === info.total) statusMap[date] = 'booked';
-          else if (info.available === info.total) statusMap[date] = 'available';
-          else if (info.pending > 0 && info.booked + info.pending === info.total) statusMap[date] = 'pending';
-          else statusMap[date] = 'partial';
-        }
-        });
-        setDateStatusMap(statusMap);
-      };
-      fetchDateStatuses();
-  }, [venue.id, bookingType]);
+    const fetchAvailableDates = async () => {
+      if (!venue?.id) return;
 
-  // Fetch slots for selected date (hourly/both)
-  useEffect(() => {
-    if ((bookingType === 'hourly' || bookingType === 'both') && selectedDate) {
-      setFetchingSlots(true);
-      supabase
+      const today = new Date();
+      const futureDate = new Date();
+      futureDate.setDate(today.getDate() + 365); // 1 year ahead
+
+      const { data, error } = await supabase
         .from('venue_slots')
-        .select('id, time: start_time, status, pending_until, price')
+        .select('date')
+        .eq('venue_id', venue.id)
+        .eq('available', true)
+        .is('booked_by', null)
+        .gte('date', formatDate(today))
+        .lte('date', formatDate(futureDate));
+
+      if (!error && data) {
+        const dates = new Set(data.map((slot: any) => slot.date));
+        setAvailableDates(dates);
+      }
+    };
+
+    fetchAvailableDates();
+  }, [venue?.id]);
+
+  // Fetch available slots for selected date (for hourly booking)
+  useEffect(() => {
+    const fetchAvailableSlots = async () => {
+      if (!selectedDate || !venue?.id || bookingType === 'daily') return;
+
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('venue_slots')
+        .select('*')
         .eq('venue_id', venue.id)
         .eq('date', selectedDate)
-        .then(({ data, error }) => {
-          if (error) setAvailableSlots([]);
-          else setAvailableSlots((data || []).map((slot: any) => ({ ...slot, selected: false })));
-        })
-        .finally(() => setFetchingSlots(false));
-    }
-  }, [venue.id, bookingType, selectedDate]);
+        .eq('available', true)
+        .is('booked_by', null)
+        .order('start_time');
 
-  // Add a useEffect to refetch slots after booking/payment attempt
-  useEffect(() => {
-    // Optionally, refetch slots after a booking/payment attempt to ensure UI is up-to-date
-    // This can be triggered by a prop or context change (e.g., bookingSuccess)
-    // For now, refetch when selectedDate changes (already handled), but you can add a dependency if needed
-  }, [selectedDate]);
-
-  // Handle slot selection
-  const handleSlotToggle = (slotTime: string) => {
-    const slotIndex = availableSlots.findIndex(slot => slot.time === slotTime);
-    if (slotIndex === -1) return;
-    const selectedIndices = availableSlots
-      .map((slot, idx) => (slot.selected ? idx : -1))
-      .filter(idx => idx !== -1);
-    if (selectedIndices.length === 0) {
-      const updatedSlots = availableSlots.map((slot, idx) => ({ ...slot, selected: idx === slotIndex }));
-      setAvailableSlots(updatedSlots);
-      setSelectedSlots([availableSlots[slotIndex]]);
-      return;
-    }
-    if (availableSlots[slotIndex].selected) {
-      const updatedSlots = availableSlots.map((slot, idx) => ({ ...slot, selected: idx === slotIndex ? false : slot.selected }));
-      setAvailableSlots(updatedSlots);
-      setSelectedSlots(updatedSlots.filter(slot => slot.selected));
-      return;
-    }
-    const minIdx = Math.min(...selectedIndices);
-    const maxIdx = Math.max(...selectedIndices);
-    if (slotIndex === minIdx - 1 || slotIndex === maxIdx + 1) {
-      const updatedSlots = availableSlots.map((slot, idx) => ({ ...slot, selected: slot.selected || idx === slotIndex }));
-      setAvailableSlots(updatedSlots);
-      setSelectedSlots(updatedSlots.filter(slot => slot.selected));
-    } else {
-      alert('Please select only consecutive time slots.');
-    }
-  };
-
-  // Save booking to localStorage and go to payment
-  const handleMakePayment = () => {
-    if (!selectedDate) return alert('Please select a date.');
-    if ((bookingType === 'hourly' || bookingType === 'both') && selectedSlots.length === 0) return alert('Please select at least one slot.');
-    const slotIds = (bookingType === 'hourly' || bookingType === 'both') ? selectedSlots.map(slot => slot.id) : [];
-    const venueAmount = bookingType === 'daily'
-      ? (venue.price_per_day || venue.daily_rate || 0) * 100
-      : selectedSlots.length * (venue.price_per_hour || venue.hourly_rate || 0) * 100;
-    const bookingPayload = {
-      venueId: venue.id,
-      userId: user.id,
-      eventDate: selectedDate,
-      startTime: (bookingType === 'hourly' || bookingType === 'both') ? selectedSlots[0]?.time || '' : '',
-      endTime: (bookingType === 'hourly' || bookingType === 'both') ? selectedSlots[selectedSlots.length - 1]?.time || '' : '',
-      guestCount: dailyGuests,
-      specialRequests: dailySpecialRequests,
-      venueAmount,
-      platformFee: 35 * 100,
-      bookingType,
-      slot_ids: slotIds,
+      if (!error && data) {
+        setAvailableSlots(data);
+      }
+      setLoading(false);
     };
-    localStorage.setItem('pendingBooking', JSON.stringify(bookingPayload));
-    navigate('/payment');
+
+    fetchAvailableSlots();
+  }, [selectedDate, venue?.id, bookingType]);
+
+  // Handle date selection
+  const handleDateClick = (date: Date) => {
+    const dateStr = formatDate(date);
+    
+    if (!availableDates.has(dateStr)) {
+      alert('This date is not available for booking');
+      return;
+    }
+
+    if (bookingType === 'daily') {
+      // For daily booking, allow multiple date selection
+      setSelectedDates(prev => {
+        if (prev.includes(dateStr)) {
+          return prev.filter(d => d !== dateStr);
+        } else {
+          return [...prev, dateStr];
+        }
+      });
+    } else {
+      // For hourly booking, select single date
+      setSelectedDate(dateStr);
+      setCalendarOpen(false);
+    }
   };
 
-  // Price breakdown
-  const venuePrice = bookingType === 'daily'
-    ? (venue.price_per_day || venue.daily_rate || 0)
-    : selectedSlots.length * (venue.price_per_hour || venue.hourly_rate || 0);
-  const platformFee = 35;
-  const total = venuePrice + platformFee;
+  // Handle slot selection for hourly booking
+  const handleSlotToggle = (slotId: string) => {
+    setSelectedSlots(prev => {
+      if (prev.includes(slotId)) {
+        return prev.filter(id => id !== slotId);
+      } else {
+        // For hourly booking, limit to 5 consecutive slots
+        const newSelection = [...prev, slotId];
+        if (newSelection.length > 5) {
+          alert('You can select maximum 5 slots');
+          return prev;
+        }
+        return newSelection;
+      }
+    });
+  };
+
+  // Calculate pricing
+  const calculatePrice = () => {
+    if (bookingType === 'daily') {
+      const pricePerDay = venue.price_per_day || venue.daily_rate || 0;
+      return selectedDates.length * pricePerDay;
+    } else {
+      const selectedSlotData = availableSlots.filter(slot => selectedSlots.includes(slot.id));
+      return selectedSlotData.reduce((total, slot) => total + slot.price, 0);
+    }
+  };
+
+  const venuePrice = calculatePrice();
+  const platformFee = bookingType === 'daily' ? selectedDates.length * 35 : 35;
+  const totalPrice = venuePrice + platformFee;
+
+  // Handle booking submission
+  const handleBooking = () => {
+    if (bookingType === 'daily') {
+      if (selectedDates.length === 0) {
+        alert('Please select at least one date');
+        return;
+      }
+      
+      const payload = {
+        venueId: venue.id,
+        venueName: venue.venue_name || venue.name,
+        userId: user.id,
+        eventDates: selectedDates,
+        eventDate: selectedDates[0], // Primary date for payment page
+        guestCount: dailyGuests.toString(),
+        specialRequests: dailySpecialRequests,
+        venueAmount: String(venuePrice * 100), // Convert to paisa as string
+        platformFee: String(platformFee * 100), // Convert to paisa as string
+        totalAmount: String(totalPrice * 100), // Convert to paisa as string
+        bookingType: 'daily',
+        slot_ids: [], // Empty for daily bookings
+        startTime: '00:00:00',
+        endTime: '23:59:59',
+      };
+      
+      localStorage.setItem('pendingBooking', JSON.stringify(payload));
+      navigate('/payment');
+    } else {
+      if (!selectedDate || selectedSlots.length === 0) {
+        alert('Please select a date and at least one time slot');
+        return;
+      }
+
+      const selectedSlotData = availableSlots.filter(slot => selectedSlots.includes(slot.id));
+      const startTime = selectedSlotData[0]?.start_time;
+      const endTime = selectedSlotData[selectedSlotData.length - 1]?.end_time;
+
+      const payload = {
+        venueId: venue.id,
+        venueName: venue.venue_name || venue.name,
+        userId: user.id,
+        eventDates: [selectedDate],
+        eventDate: selectedDate,
+        startTime,
+        endTime,
+        guestCount: dailyGuests.toString(),
+        specialRequests: dailySpecialRequests,
+        venueAmount: String(venuePrice * 100), // Convert to paisa as string
+        platformFee: String(platformFee * 100), // Convert to paisa as string
+        totalAmount: String(totalPrice * 100), // Convert to paisa as string
+        bookingType: 'hourly',
+        slot_ids: selectedSlots,
+      };
+
+      localStorage.setItem('pendingBooking', JSON.stringify(payload));
+      navigate('/payment');
+    }
+  };
+
+  // Calendar tile styling
+  const getTileClassName = ({ date }: { date: Date }) => {
+    const dateStr = formatDate(date);
+    const isToday = dateStr === formatDate(new Date());
+    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+    const isAvailable = availableDates.has(dateStr);
+    const isSelected = bookingType === 'daily' 
+      ? selectedDates.includes(dateStr)
+      : selectedDate === dateStr;
+
+    let classes = 'text-sm ';
+
+    if (isPast) {
+      classes += 'opacity-40 cursor-not-allowed ';
+    } else if (isSelected && isAvailable) {
+      classes += 'bg-blue-500 text-white font-bold ';
+    } else if (isAvailable) {
+      classes += 'bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 ';
+    } else {
+      classes += 'bg-red-100 text-red-600 cursor-not-allowed ';
+    }
+
+    if (isToday) {
+      classes += 'ring-2 ring-blue-400 ';
+    }
+
+    return classes;
+  };
 
   return (
-    <div className="relative max-w-xs mx-auto w-full bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-green-700">₹{bookingType === 'daily' ? (venue.price_per_day || venue.daily_rate || 0) : (venue.price_per_hour || venue.hourly_rate || 0)}</span>
-          <span className="text-gray-600 font-medium text-sm">{bookingType === 'daily' ? 'per day' : 'per hour'}</span>
-        </div>
-        <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-1 rounded-full">Best Price</span>
+    <div className="bg-white rounded-lg shadow-lg border p-6 max-w-md mx-auto">
+      {/* Header */}
+      <div className="mb-4 text-center">
+        <h3 className="text-lg font-semibold text-gray-800">Book {venue.venue_name || venue.name}</h3>
+        <p className="text-sm text-gray-600">
+          {bookingType === 'daily' ? 'Daily' : bookingType === 'hourly' ? 'Hourly' : 'Flexible'} Booking
+        </p>
+        <p className="text-lg font-bold text-green-600 mt-1">
+          ₹{bookingType === 'daily' ? venue.price_per_day || venue.daily_rate : venue.price_per_hour || venue.hourly_rate}
+          <span className="text-sm font-normal"> per {bookingType === 'daily' ? 'day' : 'hour'}</span>
+        </p>
       </div>
-      <div className="flex-1 px-4 py-2 space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
-            <svg className="h-3 w-3 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg> Select Date
-          </label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-              >
-                <span className="mr-2">{selectedDate ? new Date(selectedDate).toLocaleDateString() : 'Pick a date'}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={selectedDate ? new Date(selectedDate) : undefined}
-                onSelect={date => {
-                  if (!date) return setSelectedDate(undefined);
-                  // Use local date string to avoid timezone issues
-                  setSelectedDate(formatLocalYMD(date));
-                }}
-            disabled={date => {
-                  if (bookingType === 'daily') return bookedDates.has(formatLocalYMD(date));
-              const ymd = formatLocalYMD(date);
-              return dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd];
-            }}
-                modifiers={{
-                  available: (date: Date) => {
-                    const ymd = formatLocalYMD(date);
-                    return bookingType === 'daily'
-                      ? !bookedDates.has(ymd) && dateStatusMap[ymd] === 'available'
-                      : dateStatusMap[ymd] === 'available';
-                  },
-                  booked: (date: Date) => {
-                    const ymd = formatLocalYMD(date);
-                    return bookingType === 'daily'
-                      ? bookedDates.has(ymd) || dateStatusMap[ymd] === 'booked'
-                      : dateStatusMap[ymd] === 'booked';
-                  },
-                  pending: (date: Date) => {
-                    const ymd = formatLocalYMD(date);
-                    return dateStatusMap[ymd] === 'pending';
-                  },
-                  partial: (date: Date) => {
-                    const ymd = formatLocalYMD(date);
-                    return dateStatusMap[ymd] === 'partial';
-                  },
-            }}
-                modifiersClassNames={{
-              available: 'bg-blue-200 text-blue-900 font-bold border-blue-400 border-2',
-              partial: 'bg-yellow-200 text-yellow-900 font-bold border-yellow-400 border-2',
-              booked: 'bg-red-200 text-red-900 font-bold border-red-400 border-2 opacity-60',
-                  pending: 'bg-gray-300 text-gray-600',
-            }}
-                className="p-1 max-w-xs rounded-xl shadow-md"
-            classNames={{
-                  cell: 'h-7 w-7 text-xs rounded-lg transition-all duration-150',
-                  day: 'h-7 w-7 p-0 text-xs rounded-lg hover:bg-yellow-100 hover:text-yellow-900 transition-all duration-150',
-                  day_selected: 'bg-yellow-300 text-yellow-900 font-bold border-yellow-500 border-2',
-              month: 'space-y-2',
-              caption: 'pt-0 pb-1',
-            }}
-          />
-            </PopoverContent>
-          </Popover>
-        </div>
-        {/* Slot selection for hourly/both */}
-        {(bookingType === 'hourly' || bookingType === 'both') && selectedDate && (
-          <div className="space-y-2 mt-2">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Select Time Slots</label>
-            {fetchingSlots && (
-              <div className="flex justify-center items-center py-2">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                <span className="ml-2 text-blue-600 text-xs">Loading slots...</span>
+
+      {/* Date Selection */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {bookingType === 'daily' ? 'Select Dates' : 'Select Date'}
+        </label>
+        
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start text-left"
+              onClick={() => setCalendarOpen(true)}
+            >
+              {bookingType === 'daily' ? (
+                selectedDates.length > 0 
+                  ? `${selectedDates.length} date(s) selected`
+                  : 'Pick dates'
+              ) : (
+                selectedDate 
+                  ? new Date(selectedDate).toLocaleDateString()
+                  : 'Pick a date'
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <ReactCalendar
+              onClickDay={handleDateClick}
+              tileClassName={getTileClassName}
+              minDate={new Date()}
+              maxDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year ahead
+            />
+            
+            {/* Calendar Legend */}
+            <div className="p-3 border-t">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-100 border"></div>
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-blue-500 border"></div>
+                  <span>Selected</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-red-100 border"></div>
+                  <span>Unavailable</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons for daily booking */}
+            {bookingType === 'daily' && (
+              <div className="flex gap-2 p-3 border-t">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setSelectedDates([])}
+                >
+                  Clear
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={() => setCalendarOpen(false)}
+                >
+                  Done
+                </Button>
               </div>
             )}
-            <div className="grid grid-cols-3 gap-1 max-h-40 overflow-y-auto sm:grid-cols-4 sm:gap-2">
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Time Slots for Hourly Booking */}
+      {(bookingType === 'hourly' || bookingType === 'both') && selectedDate && (
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Time Slots
+          </label>
+          
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-sm text-gray-500 mt-2">Loading slots...</p>
+            </div>
+          ) : availableSlots.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No slots available for this date
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
               {availableSlots.map((slot) => (
                 <Button
-                  key={slot.time}
-                  variant={slot.selected ? "default" : slot.status === 'available' ? "outline" : slot.status === 'pending' ? "secondary" : "destructive"}
+                  key={slot.id}
                   size="sm"
-                  onClick={() => slot.status === 'available' && handleSlotToggle(slot.time)}
-                  className={`h-8 text-xs relative ${slot.status === 'pending' ? 'bg-gray-300 text-gray-600' : slot.status === 'booked' ? 'bg-red-200 text-red-700' : ''}`}
-                  disabled={slot.status !== 'available'}
+                  variant={selectedSlots.includes(slot.id) ? 'default' : 'outline'}
+                  onClick={() => handleSlotToggle(slot.id)}
+                  className={`text-xs ${
+                    selectedSlots.includes(slot.id) 
+                      ? 'bg-blue-500 hover:bg-blue-600' 
+                      : 'hover:bg-blue-50'
+                  }`}
                 >
-                  {slot.time}
-                  {slot.selected && (
-                    <span className="absolute top-0.5 right-1 text-green-600">✔</span>
-                  )}
+                  {formatTime(slot.start_time)}
+                  <br />
+                  ₹{slot.price}
                 </Button>
               ))}
             </div>
-          </div>
-        )}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
-            <svg className="h-3 w-3 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> Number of Guests
-          </label>
-          <div className="flex items-center gap-2 mt-1">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setDailyGuests(Math.max(1, dailyGuests - 1))}
-              disabled={dailyGuests <= 1}
-            >-</Button>
-            <span className="flex-1 text-center font-medium text-sm">{dailyGuests}</span>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setDailyGuests(venue.capacity ? Math.min(venue.capacity, dailyGuests + 1) : dailyGuests + 1)}
-              disabled={venue.capacity ? dailyGuests >= venue.capacity : false}
-            >+</Button>
-          </div>
-          {venue.capacity && (
-            <p className="text-xs text-gray-500 text-center">Maximum {venue.capacity} guests</p>
           )}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
-            <svg className="h-3 w-3 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg> Special Requests
-          </label>
-          <textarea
-            className="border rounded px-2 py-1 w-full mt-1 text-xs"
-            rows={2}
-            placeholder="Any special requests? (optional)"
-            value={dailySpecialRequests}
-            onChange={e => setDailySpecialRequests(e.target.value)}
-          />
+      )}
+
+      {/* Guest Count */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Number of Guests
+        </label>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDailyGuests(Math.max(1, dailyGuests - 1))}
+            disabled={dailyGuests <= 1}
+          >
+            -
+          </Button>
+          <span className="font-medium text-center min-w-[2rem]">{dailyGuests}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDailyGuests(
+              venue.capacity ? Math.min(venue.capacity, dailyGuests + 1) : dailyGuests + 1
+            )}
+            disabled={venue.capacity && dailyGuests >= venue.capacity}
+          >
+            +
+          </Button>
+        </div>
+        {venue.capacity && (
+          <p className="text-xs text-gray-500 mt-1">
+            Maximum {venue.capacity} guests
+          </p>
+        )}
+      </div>
+
+      {/* Special Requests */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Special Requests (Optional)
+        </label>
+        <textarea
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+          rows={3}
+          placeholder="Any special requirements..."
+          value={dailySpecialRequests}
+          onChange={(e) => setDailySpecialRequests(e.target.value)}
+        />
+      </div>
+
+      {/* Selected Summary for Daily Booking */}
+      {bookingType === 'daily' && selectedDates.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-900 mb-1">Selected Dates:</h4>
+          <div className="text-xs text-blue-800">
+            {selectedDates.map(date => (
+              <div key={date}>{new Date(date).toLocaleDateString()}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pricing Summary */}
+      <div className="border-t pt-4 mb-4">
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Venue Price</span>
+            <span>₹{venuePrice}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Platform Fee</span>
+            <span>₹{platformFee}</span>
+          </div>
+          <div className="flex justify-between font-semibold border-t pt-2">
+            <span>Total</span>
+            <span>₹{totalPrice}</span>
+          </div>
         </div>
       </div>
-      {/* Price breakdown and Book Now button */}
-      <div className="border-t border-gray-200 px-4 py-2 bg-white">
-        <div className="flex items-center justify-between mb-1 text-xs">
-          <span className="font-medium text-gray-700">Venue Price</span>
-          <span className="font-semibold text-gray-900">₹{venuePrice}</span>
-        </div>
-        <div className="flex items-center justify-between mb-1 text-xs">
-          <span className="font-medium text-gray-700">Platform Fee</span>
-          <span className="font-semibold text-gray-900">₹{platformFee}</span>
-        </div>
-        <div className="flex items-center justify-between border-t border-gray-200 pt-1 mb-2 text-sm">
-          <span className="font-bold text-blue-900">Total</span>
-          <span className="font-bold text-blue-900">₹{total}</span>
-        </div>
-        <Button
-          onClick={handleMakePayment}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-2 rounded-xl shadow-lg mt-2"
-        >
-          Book Now - ₹{total}/{bookingType === 'daily' ? 'day' : 'hour'}
-        </Button>
-      </div>
-      {/* Legend for color codes */}
-      <div className="flex flex-wrap gap-2 mt-2 text-xs items-center">
-        <span className="inline-block w-4 h-4 bg-blue-200 border-blue-400 border-2 rounded mr-1"></span> Available
-        <span className="inline-block w-4 h-4 bg-yellow-200 border-yellow-400 border-2 rounded mr-1"></span> Partially Booked
-        <span className="inline-block w-4 h-4 bg-red-200 border-red-400 border-2 rounded mr-1"></span> Booked
-        <span className="inline-block w-4 h-4 bg-gray-300 border-gray-400 border-2 rounded mr-1"></span> Pending
+
+      {/* Book Button */}
+      <Button
+        className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3"
+        onClick={handleBooking}
+        disabled={
+          (bookingType === 'daily' && selectedDates.length === 0) ||
+          (bookingType !== 'daily' && (!selectedDate || selectedSlots.length === 0))
+        }
+      >
+        Book Now - ₹{totalPrice}
+      </Button>
+
+      {/* Booking Type Info */}
+      <div className="mt-3 text-xs text-gray-500 text-center">
+        {bookingType === 'daily' && 'Select multiple dates for daily booking'}
+        {bookingType === 'hourly' && 'Select date and time slots for hourly booking'}
+        {bookingType === 'both' && 'Flexible booking - select date and optional time slots'}
       </div>
     </div>
   );

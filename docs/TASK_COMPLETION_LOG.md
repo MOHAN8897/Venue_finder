@@ -878,3 +878,7 @@ Applied comprehensive mobile optimizations to the UserBookings page (`src/pages/
 - This aligns the database with the new dashboard and business requirements.
 - See CODE_CHANGE_LOG.md and database/sql_commands.md for details.
 - Timestamp: 2024-08-02 
+
+## [2024-06-13] Calendar Popover Grid Layout Fixed in Venue Booking
+- The calendar popover in the venue 'View Details' booking section now displays as a proper grid of dates (calendar view) instead of a vertical list.
+- Users can now select dates in a familiar calendar grid format when booking a venue. 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, MapPin, Clock, Shield, Star, ArrowRight, Users, Award } from 'lucide-react';
 import { venueService, Venue } from '../lib/venueService';
+import PaymentTest from '../components/PaymentTest';
 
 const Home: React.FC = () => {
   const [searchLocation, setSearchLocation] = useState('');
@@ -376,6 +377,14 @@ const Home: React.FC = () => {
               List Your Venue
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Payment Test Section - Temporary for debugging */}
+      <section className="py-12 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-bold text-center mb-8">Payment Integration Test</h2>
+          <PaymentTest />
         </div>
       </section>
     </div>
