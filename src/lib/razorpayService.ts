@@ -1,5 +1,6 @@
 import { getKeyId, getKeySecret, razorpayConfig, validateConfig, logConfigStatus } from './razorpay-config';
 import { razorpayBackend } from './razorpayBackend';
+import { supabase } from './supabase';
 
 // Types for Razorpay
 interface RazorpayOrder {
@@ -52,6 +53,15 @@ interface PaymentOptions {
   };
 }
 
+export interface RazorpayOrderOptions {
+  amount: number;
+  currency: string;
+  receipt?: string;
+  notes?: Record<string, string>;
+  payment_capture?: boolean;
+  method?: string; // Add method parameter for UPI orders
+}
+
 // Initialize Razorpay configuration
 const initializeRazorpay = () => {
   // Log configuration status for debugging
@@ -94,57 +104,31 @@ export const validateAndLogOrderPayload = (params: CreateOrderParams) => {
 };
 
 // Create Razorpay order using Edge Function
-export const createRazorpayOrder = async (params: CreateOrderParams): Promise<RazorpayOrder> => {
+export const createRazorpayOrder = async (options: RazorpayOrderOptions) => {
   try {
-    // Initialize and validate configuration
-    initializeRazorpay();
-    // Validate input parameters
-    validateAndLogOrderPayload({
-      ...params,
-      currency: params.currency || razorpayConfig.currency,
-      receipt: params.receipt || `receipt_${Date.now()}`
-    });
-    // Call the Edge Function endpoint
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`;
-    console.log('Calling edge function URL:', url);
-    console.log('Request payload:', {
-      amount: params.amount,
-      currency: params.currency || razorpayConfig.currency,
-      receipt: params.receipt || `receipt_${Date.now()}`,
-      notes: params.notes
-    });
+    console.log('Creating Razorpay order with options:', options);
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-      amount: params.amount,
-      currency: params.currency || razorpayConfig.currency,
-      receipt: params.receipt || `receipt_${Date.now()}`,
-      notes: params.notes
-      }),
+    const response = await supabase.functions.invoke('create-razorpay-order', {
+      body: {
+        amount: options.amount,
+        currency: options.currency || 'INR',
+        receipt: options.receipt || `temp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        payment_capture: options.payment_capture !== undefined ? options.payment_capture : true,
+        notes: options.notes || {},
+        method: options.method // Pass method for UPI orders
+      }
     });
-    console.log('Edge function response status:', response.status);
-    const data = await response.json();
-    console.log('Edge function response data:', data);
-    
-    if (!response.ok || !data.success) {
-      console.error('Edge function error:', data);
-      throw new Error(data.error || 'Failed to create payment order');
+
+    if (response.error) {
+      console.error('Razorpay order creation error:', response.error);
+      throw new Error(response.error.message || 'Failed to create payment order');
     }
-    const order = data.order;
-    return {
-      id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      receipt: order.receipt,
-      status: order.status
-    };
+
+    console.log('Razorpay order created successfully:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Error creating Razorpay order:', error);
-    throw new Error('Failed to create payment order');
+    throw error;
   }
 };
 
@@ -368,3 +352,127 @@ declare global {
     Razorpay: any;
   }
 } 
+
+export const getRazorpayOptions = (order: any, userDetails: any) => {
+  const options = {
+    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    amount: order.amount,
+    currency: order.currency,
+    name: 'Venue Finder',
+    description: 'Venue Booking Payment',
+    image: '/logo.png',
+    order_id: order.id,
+    method: {
+      upi: true,        // Enable UPI
+      card: true,       // Enable Cards
+      netbanking: true, // Enable NetBanking
+      wallet: true,     // Enable Wallets
+      emi: false        // Disable EMI for simplicity
+    },
+    // Enhanced UPI configuration
+    config: {
+      display: {
+        blocks: {
+          utib: { // Custom UPI block
+            name: "Pay using UPI",
+            instruments: [
+              {
+                method: "upi"
+              }
+            ]
+          }
+        },
+        sequence: ["block.utib", "block.other"], // Show UPI first
+        preferences: {
+          show_default_blocks: true
+        }
+      }
+    },
+    prefill: {
+      name: userDetails?.name || '',
+      email: userDetails?.email || '',
+      contact: userDetails?.phone || ''
+    },
+    notes: order.notes || {},
+    theme: {
+      color: '#3b82f6'
+    },
+    modal: {
+      ondismiss: function() {
+        console.log('Razorpay modal dismissed');
+      }
+    }
+  };
+
+  return options;
+};
+
+// Add UPI-specific utility functions based on Context7 documentation
+
+export const validateUPIVPA = async (vpa: string) => {
+  try {
+    const response = await supabase.functions.invoke('validate-upi-vpa', {
+      body: { vpa }
+    });
+
+    if (response.error) {
+      throw new Error(response.error.message);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error validating UPI VPA:', error);
+    throw error;
+  }
+};
+
+export const createUPIPayment = async (paymentData: {
+  amount: number;
+  currency: string;
+  order_id: string;
+  email: string;
+  contact: string;
+  description: string;
+  upi: {
+    flow: 'intent' | 'collect';
+    vpa?: string;
+    expiry_time?: number;
+  };
+}) => {
+  try {
+    const response = await supabase.functions.invoke('create-upi-payment', {
+      body: {
+        ...paymentData,
+        method: 'upi'
+      }
+    });
+
+    if (response.error) {
+      throw new Error(response.error.message);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error creating UPI payment:', error);
+    throw error;
+  }
+};
+
+// Add UPI-specific order creation
+export const createUPIOrder = async (options: {
+  amount: number;
+  currency: string;
+  customer_id?: string;
+  notes?: Record<string, string>;
+}) => {
+  return createRazorpayOrder({
+    ...options,
+    method: 'upi' // Specify UPI method
+  });
+};
+
+// Test UPI credentials for development
+export const TEST_UPI_CREDENTIALS = {
+  success: 'success@razorpay',
+  failure: 'failure@razorpay'
+}; 
