@@ -46,16 +46,6 @@ interface PaymentOptions {
   theme: {
     color: string;
   };
-  config?: {
-    display: {
-      blocks?: Record<string, any>;
-      hide?: Array<{ method: string }>;
-      sequence?: string[];
-      preferences?: {
-        show_default_blocks?: boolean;
-      };
-    };
-  };
   handler: (response: any) => void;
   modal: {
     ondismiss: () => void;
@@ -222,9 +212,17 @@ const createPaymentModal = (
       throw new Error('Razorpay key ID not configured');
     }
     
+    // Log the order details for debugging
+    console.log('Razorpay Order Details:', {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      amountInRupees: order.amount / 100
+    });
+
     const options: PaymentOptions = {
       key: keyId,
-      amount: order.amount,
+      amount: order.amount, // Amount in paise (automatically from order)
       currency: order.currency,
       name: 'Venue Finder',
       description: 'Venue Booking Payment',
@@ -242,14 +240,6 @@ const createPaymentModal = (
       theme: {
         color: '#3B82F6'
       },
-      // Enable UPI and other payment methods
-      config: {
-        display: {
-          preferences: {
-            show_default_blocks: true, // Show all available payment methods including UPI
-          }
-        }
-      },
       handler: (response: any) => {
         console.log('Payment successful:', response);
         onSuccess(response);
@@ -261,6 +251,9 @@ const createPaymentModal = (
         }
       }
     };
+
+    // Log final options for debugging
+    console.log('Razorpay Modal Options:', options);
 
     const razorpay = new (window as any).Razorpay(options);
     razorpay.open();
