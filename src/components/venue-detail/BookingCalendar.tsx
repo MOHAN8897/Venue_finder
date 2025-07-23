@@ -49,27 +49,30 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
   // Fetch date statuses for hourly/both and daily
   useEffect(() => {
-    const fetchDateStatuses = async () => {
-      const today = new Date();
-      const end = new Date();
-      end.setDate(today.getDate() + 30);
-      const { data, error } = await supabase
-        .from('venue_slots')
+      const fetchDateStatuses = async () => {
+        // Use local date for today
+        const today = new Date();
+        const localTodayYMD = formatLocalYMD(today);
+        const end = new Date();
+        end.setDate(today.getDate() + 30);
+        const { data, error } = await supabase
+          .from('venue_slots')
         .select('date, status')
-        .eq('venue_id', venue.id)
-        .gte('date', today.toISOString().split('T')[0])
-        .lte('date', end.toISOString().split('T')[0]);
-      if (error) return setDateStatusMap({});
+          .eq('venue_id', venue.id)
+          // Use localTodayYMD instead of today.toISOString().split('T')[0]
+          .gte('date', localTodayYMD)
+          .lte('date', formatLocalYMD(end));
+        if (error) return setDateStatusMap({});
       const byDate: Record<string, { total: number, available: number, booked: number, pending: number }> = {};
-      (data || []).forEach((row: any) => {
+        (data || []).forEach((row: any) => {
         if (!byDate[row.date]) byDate[row.date] = { total: 0, available: 0, booked: 0, pending: 0 };
-        byDate[row.date].total++;
+          byDate[row.date].total++;
         if (row.status === 'available') byDate[row.date].available++;
         else if (row.status === 'booked') byDate[row.date].booked++;
         else if (row.status === 'pending') byDate[row.date].pending++;
-      });
+        });
       const statusMap: Record<string, 'available' | 'partial' | 'booked' | 'pending'> = {};
-      Object.entries(byDate).forEach(([date, info]) => {
+        Object.entries(byDate).forEach(([date, info]) => {
         if (bookingType === 'daily') {
           if (info.booked === info.total) statusMap[date] = 'booked';
           else if (info.pending > 0) statusMap[date] = 'pending';
@@ -80,10 +83,10 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
           else if (info.pending > 0 && info.booked + info.pending === info.total) statusMap[date] = 'pending';
           else statusMap[date] = 'partial';
         }
-      });
-      setDateStatusMap(statusMap);
-    };
-    fetchDateStatuses();
+        });
+        setDateStatusMap(statusMap);
+      };
+      fetchDateStatuses();
   }, [venue.id, bookingType]);
 
   // Fetch slots for selected date (hourly/both)
@@ -196,56 +199,56 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate ? new Date(selectedDate) : undefined}
+          <Calendar
+            mode="single"
+            selected={selectedDate ? new Date(selectedDate) : undefined}
                 onSelect={date => {
                   if (!date) return setSelectedDate(undefined);
                   // Use local date string to avoid timezone issues
                   setSelectedDate(formatLocalYMD(date));
                 }}
-                disabled={date => {
-                  if (bookingType === 'daily') return bookedDates.has(date.toISOString().split('T')[0]);
-                  const ymd = date.toISOString().split('T')[0];
-                  return dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd];
-                }}
+            disabled={date => {
+                  if (bookingType === 'daily') return bookedDates.has(formatLocalYMD(date));
+              const ymd = formatLocalYMD(date);
+              return dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd];
+            }}
                 modifiers={{
                   available: (date: Date) => {
-                    const ymd = date.toISOString().split('T')[0];
+                    const ymd = formatLocalYMD(date);
                     return bookingType === 'daily'
                       ? !bookedDates.has(ymd) && dateStatusMap[ymd] === 'available'
                       : dateStatusMap[ymd] === 'available';
                   },
                   booked: (date: Date) => {
-                    const ymd = date.toISOString().split('T')[0];
+                    const ymd = formatLocalYMD(date);
                     return bookingType === 'daily'
                       ? bookedDates.has(ymd) || dateStatusMap[ymd] === 'booked'
                       : dateStatusMap[ymd] === 'booked';
                   },
                   pending: (date: Date) => {
-                    const ymd = date.toISOString().split('T')[0];
+                    const ymd = formatLocalYMD(date);
                     return dateStatusMap[ymd] === 'pending';
                   },
                   partial: (date: Date) => {
-                    const ymd = date.toISOString().split('T')[0];
+                    const ymd = formatLocalYMD(date);
                     return dateStatusMap[ymd] === 'partial';
                   },
-                }}
+            }}
                 modifiersClassNames={{
-                  available: 'bg-blue-200 text-blue-900 font-bold border-blue-400 border-2',
-                  partial: 'bg-yellow-200 text-yellow-900 font-bold border-yellow-400 border-2',
-                  booked: 'bg-red-200 text-red-900 font-bold border-red-400 border-2 opacity-60',
+              available: 'bg-blue-200 text-blue-900 font-bold border-blue-400 border-2',
+              partial: 'bg-yellow-200 text-yellow-900 font-bold border-yellow-400 border-2',
+              booked: 'bg-red-200 text-red-900 font-bold border-red-400 border-2 opacity-60',
                   pending: 'bg-gray-300 text-gray-600',
-                }}
+            }}
                 className="p-1 max-w-xs rounded-xl shadow-md"
-                classNames={{
+            classNames={{
                   cell: 'h-7 w-7 text-xs rounded-lg transition-all duration-150',
                   day: 'h-7 w-7 p-0 text-xs rounded-lg hover:bg-yellow-100 hover:text-yellow-900 transition-all duration-150',
                   day_selected: 'bg-yellow-300 text-yellow-900 font-bold border-yellow-500 border-2',
-                  month: 'space-y-2',
-                  caption: 'pt-0 pb-1',
-                }}
-              />
+              month: 'space-y-2',
+              caption: 'pt-0 pb-1',
+            }}
+          />
             </PopoverContent>
           </Popover>
         </div>

@@ -93,27 +93,35 @@ export const validateAndLogOrderPayload = (params: CreateOrderParams) => {
   console.log('Creating Razorpay order with payload:', params);
 };
 
-// Create Razorpay order using backend service
+// Create Razorpay order using Edge Function
 export const createRazorpayOrder = async (params: CreateOrderParams): Promise<RazorpayOrder> => {
   try {
     // Initialize and validate configuration
     initializeRazorpay();
-    
     // Validate input parameters
     validateAndLogOrderPayload({
       ...params,
       currency: params.currency || razorpayConfig.currency,
       receipt: params.receipt || `receipt_${Date.now()}`
     });
-    
-    // Create order using backend service
-    const order = await razorpayBackend.createOrder({
+    // Call the Edge Function endpoint
+    const response = await fetch('/functions/v1/create-razorpay-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
       amount: params.amount,
       currency: params.currency || razorpayConfig.currency,
       receipt: params.receipt || `receipt_${Date.now()}`,
       notes: params.notes
+      }),
     });
-    
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to create payment order');
+    }
+    const order = data.order;
     return {
       id: order.id,
       amount: order.amount,

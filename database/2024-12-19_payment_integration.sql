@@ -47,6 +47,50 @@ CREATE INDEX IF NOT EXISTS idx_payments_gateway_id ON public.payments(gateway_tr
 CREATE INDEX IF NOT EXISTS idx_payments_created_at ON public.payments(created_at DESC);
 
 -- =====================================================
+-- 1A. PAYMENT WEBHOOKS TABLE (for logging webhook events)
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.payment_webhooks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    payment_id TEXT,
+    order_id TEXT,
+    signature TEXT,
+    webhook_data JSONB,
+    received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed BOOLEAN DEFAULT FALSE,
+    error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add indexes for payment_webhooks performance
+CREATE INDEX IF NOT EXISTS idx_payment_webhooks_event_type ON public.payment_webhooks(event_type);
+CREATE INDEX IF NOT EXISTS idx_payment_webhooks_payment_id ON public.payment_webhooks(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_webhooks_order_id ON public.payment_webhooks(order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_webhooks_received_at ON public.payment_webhooks(received_at DESC);
+
+-- Enable RLS on payment_webhooks table
+ALTER TABLE public.payment_webhooks ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Only admins can view all webhook logs
+DROP POLICY IF EXISTS "Admins can view all payment webhooks" ON public.payment_webhooks;
+CREATE POLICY "Admins can view all payment webhooks" ON public.payment_webhooks
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin')
+        )
+    );
+
+-- Policy: Anyone can insert webhook logs (for Edge Function)
+DROP POLICY IF EXISTS "Anyone can insert payment webhooks" ON public.payment_webhooks;
+CREATE POLICY "Anyone can insert payment webhooks" ON public.payment_webhooks
+    FOR INSERT WITH CHECK (true);
+
+-- Grant permissions
+GRANT SELECT, INSERT ON public.payment_webhooks TO authenticated;
+
+-- =====================================================
 -- 2. PAYMENT PROCESSING FUNCTIONS
 -- =====================================================
 
