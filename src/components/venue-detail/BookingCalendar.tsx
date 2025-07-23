@@ -140,19 +140,44 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     }
   };
 
-  // Handle slot selection for hourly booking
+  // Handle slot selection for hourly booking (consecutive slots only)
   const handleSlotToggle = (slotId: string) => {
     setSelectedSlots(prev => {
       if (prev.includes(slotId)) {
         return prev.filter(id => id !== slotId);
       } else {
-        // For hourly booking, limit to 5 consecutive slots
-        const newSelection = [...prev, slotId];
-        if (newSelection.length > 5) {
-          alert('You can select maximum 5 slots');
+        // Check if this slot can be added to maintain consecutive sequence
+        const selectedIndices = prev.map(id => 
+          availableSlots.findIndex(slot => slot.id === id)
+        ).sort((a, b) => a - b);
+        
+        const newSlotIndex = availableSlots.findIndex(slot => slot.id === slotId);
+        
+        if (selectedIndices.length === 0) {
+          // First slot selection
+          return [slotId];
+        }
+        
+        // Check if new slot is consecutive to existing selection
+        const minIndex = Math.min(...selectedIndices);
+        const maxIndex = Math.max(...selectedIndices);
+        
+        const isConsecutive = 
+          newSlotIndex === minIndex - 1 || // Before the sequence
+          newSlotIndex === maxIndex + 1;   // After the sequence
+        
+        if (!isConsecutive) {
+          alert('Please select consecutive time slots only');
           return prev;
         }
-        return newSelection;
+        
+        // Check maximum limit
+        if (prev.length >= 5) {
+          alert('You can select maximum 5 consecutive slots');
+          return prev;
+        }
+        
+        return [...prev, slotId];
       }
     });
   };
@@ -351,6 +376,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Time Slots
+            <span className="block text-xs text-gray-500 font-normal mt-1">
+              Select consecutive time slots (max 5 slots)
+            </span>
           </label>
           
           {loading ? (
@@ -364,23 +392,45 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-              {availableSlots.map((slot) => (
-                <Button
-                  key={slot.id}
-                  size="sm"
-                  variant={selectedSlots.includes(slot.id) ? 'default' : 'outline'}
-                  onClick={() => handleSlotToggle(slot.id)}
-                  className={`text-xs ${
-                    selectedSlots.includes(slot.id) 
-                      ? 'bg-blue-500 hover:bg-blue-600' 
-                      : 'hover:bg-blue-50'
-                  }`}
-                >
-                  {formatTime(slot.start_time)}
-                  <br />
-                  ₹{slot.price}
-                </Button>
-              ))}
+              {availableSlots.map((slot, index) => {
+                const isSelected = selectedSlots.includes(slot.id);
+                
+                // Check if this slot is selectable (consecutive)
+                const isSelectable = (() => {
+                  if (selectedSlots.length === 0) return true; // First slot
+                  if (isSelected) return true; // Already selected
+                  
+                  const selectedIndices = selectedSlots.map(id => 
+                    availableSlots.findIndex(s => s.id === id)
+                  ).sort((a, b) => a - b);
+                  
+                  const minIndex = Math.min(...selectedIndices);
+                  const maxIndex = Math.max(...selectedIndices);
+                  
+                  return index === minIndex - 1 || index === maxIndex + 1;
+                })();
+                
+                return (
+                  <Button
+                    key={slot.id}
+                    size="sm"
+                    variant={isSelected ? 'default' : 'outline'}
+                    onClick={() => handleSlotToggle(slot.id)}
+                    disabled={!isSelectable && selectedSlots.length > 0}
+                    className={`text-xs ${
+                      isSelected 
+                        ? 'bg-blue-500 hover:bg-blue-600' 
+                        : isSelectable 
+                          ? 'hover:bg-blue-50' 
+                          : 'opacity-50 cursor-not-allowed bg-gray-100'
+                    }`}
+                  >
+                    {formatTime(slot.start_time)}
+                    <br />
+                    ₹{slot.price}
+                  </Button>
+                );
+              })}
             </div>
           )}
         </div>

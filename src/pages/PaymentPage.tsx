@@ -18,8 +18,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { venueService } from '@/lib/venueService';
 import { supabase } from '@/lib/supabase';
 
-// Patch: extend BookingWithPayment type locally to include slot_ids
-type BookingWithPaymentWithSlots = import('@/lib/paymentService').BookingWithPayment & { slot_ids?: string[] };
+// Patch: extend BookingWithPayment type locally to include missing properties
+type BookingWithPaymentWithSlots = import('@/lib/paymentService').BookingWithPayment & { 
+  slot_ids?: string[];
+  bookingType?: string;
+  eventDates?: string[];
+  specialRequests?: string;
+};
 
 const PaymentPage: React.FC = () => {
   const { bookingId } = useParams<{ bookingId: string }>();
@@ -108,36 +113,41 @@ const PaymentPage: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
+      // Generate proper receipt ID
+      const receiptId = bookingId ? `booking_${bookingId}` : `temp_booking_${Date.now()}_${user.id}`;
+      
       // Validate and log payload before creating order
       validateAndLogOrderPayload({
         amount: paymentAmount,
         currency: 'INR',
-        receipt: `booking_${bookingId}`,
+        receipt: receiptId,
         notes: {
           venue_id: booking.venueId,
           venue_name: booking.venueName,
           event_date: booking.eventDate,
           slot_times: booking.startTime + '-' + booking.endTime,
-          guest_count: booking.guestCount,
-          platform_fee: booking.platformFee,
-          venue_amount: booking.venueAmount
+          guest_count: String(booking.guestCount),
+          platform_fee: String(booking.platformFee),
+          venue_amount: String(booking.venueAmount)
         }
       });
       // Create Razorpay order via backend
       const order = await createRazorpayOrder({
         amount: paymentAmount,
         currency: 'INR',
-        receipt: `booking_${bookingId}`,
+        receipt: receiptId,
         notes: {
           venue_id: booking.venueId,
           venue_name: booking.venueName,
           event_date: booking.eventDate,
           slot_times: booking.startTime + '-' + booking.endTime,
-          guest_count: booking.guestCount,
-          platform_fee: booking.platformFee,
-          venue_amount: booking.venueAmount
+          guest_count: String(booking.guestCount),
+          platform_fee: String(booking.platformFee),
+          venue_amount: String(booking.venueAmount)
         }
       });
+      console.log('Order created successfully:', order);
+      
       // Initialize payment
       initializeRazorpayPayment(
         order,
@@ -147,27 +157,39 @@ const PaymentPage: React.FC = () => {
           contact: user.phone || ''
         },
         async (paymentResponse) => {
-          // On payment success, verify and update backend
-          if (!bookingId) {
-            // Create booking in DB using localStorage data
-            const newBookingId = await createBookingWithPayment(booking as any);
-            localStorage.removeItem('pendingBooking');
-            navigate(`/payment/${newBookingId}`);
-            return;
+          console.log('Payment successful:', paymentResponse);
+          
+          try {
+            // On payment success, verify and update backend
+            if (!bookingId) {
+              // Create booking in DB using localStorage data
+              console.log('Creating new booking with payment data...');
+              const newBookingId = await createBookingWithPayment(booking as any);
+              localStorage.removeItem('pendingBooking');
+              navigate(`/booking-confirmation/${newBookingId}`);
+              return;
+            }
+            
+            await processSuccessfulPayment(
+              bookingId as string,
+              paymentResponse.razorpay_payment_id,
+              paymentResponse.razorpay_signature,
+              booking.totalAmount
+            );
+            navigate(`/booking-confirmation/${bookingId}`);
+          } catch (error) {
+            console.error('Error processing successful payment:', error);
+            setError('Payment successful but booking creation failed. Please contact support.');
+            setIsProcessing(false);
           }
-          await processSuccessfulPayment(
-            bookingId as string,
-            paymentResponse.razorpay_payment_id,
-            paymentResponse.razorpay_signature,
-            booking.totalAmount
-          );
-          navigate(`/booking-confirmation/${bookingId}`);
         },
         (paymentError) => {
-          setError('Payment failed. Please try again.');
+          console.error('Payment failed:', paymentError);
+          setError(`Payment failed: ${paymentError.message || 'Please try again.'}`);
           setIsProcessing(false);
         },
         () => {
+          console.log('Payment cancelled or dismissed');
           setIsProcessing(false);
         }
       );

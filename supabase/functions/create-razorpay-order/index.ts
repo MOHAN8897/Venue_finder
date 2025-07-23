@@ -1,3 +1,7 @@
+// @ts-nocheck
+// Disable JWT verification for public payment processing
+// supabase:function-config verify_jwt=false
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID");
@@ -14,6 +18,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // Log incoming request for debugging
+  console.log('Incoming request method:', req.method);
+  console.log('Request headers:', Object.fromEntries(req.headers.entries()));
 
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { 
