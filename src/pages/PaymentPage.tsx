@@ -177,7 +177,23 @@ const PaymentPage: React.FC = () => {
             if (!bookingId) {
               // Create booking in DB using localStorage data
               console.log('Creating new booking with payment data...');
-              const newBookingId = await createBookingWithPayment(booking as any);
+              
+              // Convert booking data to match createBookingWithPayment interface
+              const bookingData = {
+                venueId: booking.venueId,
+                userId: booking.userId,
+                eventDate: booking.eventDate,
+                startTime: booking.startTime || '00:00:00',
+                endTime: booking.endTime || '23:59:59',
+                guestCount: parseInt(booking.guestCount || '1'),
+                specialRequests: booking.specialRequests || '',
+                venueAmount: parseInt(booking.venueAmount || '0'), // Convert from string to number (paise)
+                bookingType: booking.bookingType as 'hourly' | 'daily',
+                slot_ids: booking.slot_ids || []
+              };
+              
+              console.log('Booking data to save:', bookingData);
+              const newBookingId = await createBookingWithPayment(bookingData);
               localStorage.removeItem('pendingBooking');
               navigate(`/booking-confirmation/${newBookingId}`);
               return;

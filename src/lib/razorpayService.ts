@@ -46,6 +46,16 @@ interface PaymentOptions {
   theme: {
     color: string;
   };
+  config?: {
+    display: {
+      blocks?: Record<string, any>;
+      hide?: Array<{ method: string }>;
+      sequence?: string[];
+      preferences?: {
+        show_default_blocks?: boolean;
+      };
+    };
+  };
   handler: (response: any) => void;
   modal: {
     ondismiss: () => void;
@@ -231,6 +241,14 @@ const createPaymentModal = (
       },
       theme: {
         color: '#3B82F6'
+      },
+      // Enable UPI and other payment methods
+      config: {
+        display: {
+          preferences: {
+            show_default_blocks: true, // Show all available payment methods including UPI
+          }
+        }
       },
       handler: (response: any) => {
         console.log('Payment successful:', response);
