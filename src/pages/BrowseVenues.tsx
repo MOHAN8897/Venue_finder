@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { useDynamicSlots } from '../hooks/useDynamicSlots';
 
 // Amenity icons mapping
 const amenityIcons: Record<string, React.ReactNode> = {
@@ -824,6 +825,10 @@ const BrowseVenues: React.FC = () => {
     const discountPercentage = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
     const taxesAndFees = Math.round(currentPrice * 0.25); // 25% taxes & fees
 
+    // Show real-time availability (today)
+    const today = new Date().toISOString().split('T')[0];
+    const { slots, isLoading, error } = useDynamicSlots(venue.id, today);
+
     return (
       <Card 
         className="group overflow-hidden hover:shadow-md transition-all duration-200 bg-white rounded-lg cursor-pointer"
@@ -935,6 +940,19 @@ const BrowseVenues: React.FC = () => {
               + ₹{taxesAndFees} taxes & fees
                 </div>
           </div>
+
+          {/* Real-time Availability */}
+          <div className="mt-2">
+            {isLoading ? (
+              <Badge className="bg-gray-200 text-gray-600">Checking availability...</Badge>
+            ) : error ? (
+              <Badge className="bg-red-100 text-red-600">Error</Badge>
+            ) : slots.length > 0 ? (
+              <Badge className="bg-green-100 text-green-800">{slots.length} slots available today</Badge>
+            ) : (
+              <Badge className="bg-yellow-100 text-yellow-800">No slots today</Badge>
+            )}
+          </div>
         </div>
       </Card>
     );
@@ -946,6 +964,10 @@ const BrowseVenues: React.FC = () => {
     const amenities = venue.amenities || [];
     const displayAmenities = amenities.slice(0, 3);
     const remainingCount = amenities.length - 3;
+
+    // Show real-time availability (today)
+    const today = new Date().toISOString().split('T')[0];
+    const { slots, isLoading, error } = useDynamicSlots(venue.id, today);
 
     return (
       <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]">
@@ -1033,6 +1055,19 @@ const BrowseVenues: React.FC = () => {
               ₹{venue.price_per_day || venue.price_per_hour || venue.hourly_rate || 0}
             </div>
             <div className="text-xs sm:text-sm text-gray-500">per day</div>
+          </div>
+
+          {/* Real-time Availability */}
+          <div className="mt-2">
+            {isLoading ? (
+              <Badge className="bg-gray-200 text-gray-600">Checking availability...</Badge>
+            ) : error ? (
+              <Badge className="bg-red-100 text-red-600">Error</Badge>
+            ) : slots.length > 0 ? (
+              <Badge className="bg-green-100 text-green-800">{slots.length} slots available today</Badge>
+            ) : (
+              <Badge className="bg-yellow-100 text-yellow-800">No slots today</Badge>
+            )}
           </div>
         </CardContent>
 

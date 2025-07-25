@@ -45,6 +45,13 @@ const PaymentPage: React.FC = () => {
     const fetchBooking = async () => {
       setLoading(true);
       try {
+        // Check if user is authenticated
+        if (!user || !user.id) {
+          setError('You must be signed in to complete your booking. Please sign in first.');
+          navigate('/signin');
+          return;
+        }
+
         if (bookingId) {
           // Existing flow: fetch from DB
           const data = await getBookingWithPayment(bookingId as string);
@@ -90,6 +97,9 @@ const PaymentPage: React.FC = () => {
               const venueData = await venueService.getVenueById(parsed.venueId);
               setVenue(venueData);
             }
+          } else {
+            setError('No booking data found. Please try booking again.');
+            navigate('/venues');
           }
         }
       } catch (err) {
@@ -160,10 +170,11 @@ const PaymentPage: React.FC = () => {
         }
       });
       console.log('Order created successfully:', order);
+      console.log('Order object to pass to initializeRazorpayPayment:', order.order);
       
       // Initialize payment
       initializeRazorpayPayment(
-        order,
+        order.order, // Extract the order object from the response
         {
           name: user.name || user.full_name || 'User',
           email: user.email,
@@ -171,34 +182,75 @@ const PaymentPage: React.FC = () => {
         },
         async (paymentResponse) => {
           console.log('Payment successful:', paymentResponse);
-          
+          setIsProcessing(true);
+          setError(null);
+          let newBookingId = null;
           try {
             // On payment success, verify and update backend
             if (!bookingId) {
               // Create booking in DB using localStorage data
               console.log('Creating new booking with payment data...');
-              
-              // Convert booking data to match createBookingWithPayment interface
+              // Always get the current authenticated user from Supabase Auth
+              const { data: authUser } = await supabase.auth.getUser();
+              const userId = authUser?.user?.id;
+              if (!userId) {
+                setError('You must be signed in to complete your booking.');
+                setIsProcessing(false);
+                return;
+              }
               const bookingData = {
                 venueId: booking.venueId,
-                userId: booking.userId,
+                userId, // Use the Supabase Auth user ID
                 eventDate: booking.eventDate,
                 startTime: booking.startTime || '00:00:00',
                 endTime: booking.endTime || '23:59:59',
-                guestCount: parseInt(booking.guestCount || '1'),
+                guestCount: Number(booking.guestCount || '1'),
                 specialRequests: booking.specialRequests || '',
-                venueAmount: parseInt(booking.venueAmount || '0'), // Convert from string to number (paise)
+                venueAmount: Number(booking.venueAmount || '0'),
                 bookingType: booking.bookingType as 'hourly' | 'daily',
-                slot_ids: booking.slot_ids || []
+                slot_ids: booking.slot_ids || [],
+                customer_name: user?.full_name || user?.name || '',
+                customer_email: user?.email || '',
+                customer_phone: user?.phone || '',
               };
-              
+              console.log('BookingData.userId:', bookingData.userId, 'Supabase auth.uid():', userId);
               console.log('Booking data to save:', bookingData);
-              const newBookingId = await createBookingWithPayment(bookingData);
-              localStorage.removeItem('pendingBooking');
-              navigate(`/booking-confirmation/${newBookingId}`);
+              try {
+                console.log('Attempting to create booking with:', bookingData);
+                const response = await createBookingWithPayment(bookingData);
+                console.log('Raw booking creation response:', response);
+                if (!response) {
+                  setError('Booking creation returned no response. Please try again or contact support.');
+                  setIsProcessing(false);
+                  return;
+                }
+                newBookingId = response; // Set the newBookingId with the response
+                console.log('Booking created successfully with ID:', newBookingId);
+                localStorage.removeItem('pendingBooking');
+              } catch (err) {
+                console.error('Booking creation failed:', err);
+                setError('Payment successful but booking creation failed. Please try again or contact support.');
+                setIsProcessing(false);
+                return;
+              }
+              // Fetch the booking details to ensure it's saved and available
+              try {
+                setIsProcessing(true);
+                const bookingDetails = await getBookingWithPayment(newBookingId);
+                if (bookingDetails) {
+                  console.log('Fetched booking details:', bookingDetails);
+                  navigate(`/booking-confirmation/${newBookingId}`);
+                } else {
+                  setError('Booking was created but could not be loaded. Please check your bookings or contact support.');
+                  setIsProcessing(false);
+                }
+              } catch (fetchErr) {
+                console.error('Error fetching booking after creation:', fetchErr);
+                setError('Booking was created but could not be loaded. Please check your bookings or contact support.');
+                setIsProcessing(false);
+              }
               return;
             }
-            
             await processSuccessfulPayment(
               bookingId as string,
               paymentResponse.razorpay_payment_id,
@@ -309,6 +361,11 @@ const PaymentPage: React.FC = () => {
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <p className="text-red-600 text-sm">{error}</p>
+                    {error.includes('booking creation failed') && (
+                      <Button className="mt-2" onClick={handlePayment} disabled={isProcessing}>
+                        Retry Booking
+                      </Button>
+                    )}
                   </div>
                 )}
 

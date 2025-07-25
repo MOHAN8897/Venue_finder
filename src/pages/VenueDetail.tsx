@@ -165,8 +165,7 @@ const VenueDetailPage: React.FC = () => {
   const handleSlotBookingSubmit = async (bookingData: SlotBookingData): Promise<string | void> => {
     if (!venue) return;
     if (!user || !user.id) {
-      setError('You must be logged in to book. (User profile not loaded)');
-      alert('You must be logged in to book. Please sign in again.');
+      setError('You must be logged in to book. Please sign in to continue.');
       return;
     }
     // Prepare booking payload

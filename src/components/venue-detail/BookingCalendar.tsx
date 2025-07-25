@@ -4,6 +4,10 @@ import { supabase } from '@/lib/supabase';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import ReactCalendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import './venue-calendar.css';
+import { useDynamicSlots } from '@/hooks/useDynamicSlots';
+import SignInModal from './SignInModal';
+import { bookingRestorationService } from '@/lib/bookingRestorationService';
 
 interface BookingCalendarProps {
   bookingType: 'hourly' | 'daily' | 'both';
@@ -44,6 +48,44 @@ const formatTime = (timeString: string): string => {
   });
 };
 
+// Helper function to check if a date is available based on weekly availability
+const isDateAvailable = (date: Date, weeklyAvailability: any, oldAvailability: string[]): boolean => {
+  const dayOfWeek = date.getDay();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = dayNames[dayOfWeek];
+  
+  // Check new weekly availability format first
+  if (weeklyAvailability && Object.keys(weeklyAvailability).length > 0) {
+    const dayAvailability = weeklyAvailability[dayName];
+    return dayAvailability && dayAvailability.available;
+  }
+  
+  // Fallback to old availability array format
+  if (oldAvailability && oldAvailability.length > 0) {
+    const dayNamesOld = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayNameOld = dayNamesOld[dayOfWeek];
+    return oldAvailability.includes(dayNameOld);
+  }
+  
+  // If no availability data, assume all days are available
+  return true;
+};
+
+// Helper function to generate available dates for the next 365 days
+const generateAvailableDates = (weeklyAvailability: any, oldAvailability: string[]): Set<string> => {
+  const availableDates = new Set<string>();
+  const today = new Date();
+  const oneYearFromNow = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000);
+  
+  for (let date = new Date(today); date <= oneYearFromNow; date.setDate(date.getDate() + 1)) {
+    if (isDateAvailable(date, weeklyAvailability, oldAvailability)) {
+      availableDates.add(formatDate(date));
+    }
+  }
+  
+  return availableDates;
+};
+
 const BookingCalendar: React.FC<BookingCalendarProps> = ({
   bookingType,
   venue,
@@ -58,69 +100,50 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   navigate,
 }) => {
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
-  const [availableSlots, setAvailableSlots] = useState<SlotData[]>([]);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Fetch available dates for the venue
+  // Use dynamic slots hook for hourly/both booking
+  const { slots: availableSlots, isLoading: loading, error } = useDynamicSlots({
+    venueId: venue?.id,
+    date: selectedDate || ''
+  });
+
+  // Generate available dates based on venue's weekly availability
   useEffect(() => {
-    const fetchAvailableDates = async () => {
-      if (!venue?.id) return;
+    if (venue) {
+      const weeklyAvailability = venue.weekly_availability || {};
+      const oldAvailability = venue.availability || [];
+      const availableDatesSet = generateAvailableDates(weeklyAvailability, oldAvailability);
+      setAvailableDates(availableDatesSet);
+      
+      // Debug log for availability calculation
+      console.log('Venue availability debug:', {
+        venueName: venue.venue_name,
+        weeklyAvailability,
+        oldAvailability,
+        availableDatesCount: availableDatesSet.size,
+        sampleAvailableDates: Array.from(availableDatesSet).slice(0, 10)
+      });
+    }
+  }, [venue]);
 
-      const today = new Date();
-      const futureDate = new Date();
-      futureDate.setDate(today.getDate() + 365); // 1 year ahead
-
-      const { data, error } = await supabase
-        .from('venue_slots')
-        .select('date')
-        .eq('venue_id', venue.id)
-        .eq('available', true)
-        .is('booked_by', null)
-        .gte('date', formatDate(today))
-        .lte('date', formatDate(futureDate));
-
-      if (!error && data) {
-        const dates = new Set(data.map((slot: any) => slot.date));
-        setAvailableDates(dates);
-      }
-    };
-
-    fetchAvailableDates();
-  }, [venue?.id]);
-
-  // Fetch available slots for selected date (for hourly booking)
-  useEffect(() => {
-    const fetchAvailableSlots = async () => {
-      if (!selectedDate || !venue?.id || bookingType === 'daily') return;
-
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('venue_slots')
-        .select('*')
-        .eq('venue_id', venue.id)
-        .eq('date', selectedDate)
-        .eq('available', true)
-        .is('booked_by', null)
-        .order('start_time');
-
-      if (!error && data) {
-        setAvailableSlots(data);
-      }
-      setLoading(false);
-    };
-
-    fetchAvailableSlots();
-  }, [selectedDate, venue?.id, bookingType]);
-
-  // Handle date selection
+  // Handle date selection with proper availability checking
   const handleDateClick = (date: Date) => {
     const dateStr = formatDate(date);
+    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     
+    // Prevent selection of past dates
+    if (isPast) {
+      alert('Cannot select past dates');
+      return;
+    }
+    
+    // Prevent selection of unavailable dates
     if (!availableDates.has(dateStr)) {
-      alert('This date is not available for booking');
+      alert('This date is not available for booking according to venue schedule');
       return;
     }
 
@@ -189,7 +212,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       return selectedDates.length * pricePerDay;
     } else {
       const selectedSlotData = availableSlots.filter(slot => selectedSlots.includes(slot.id));
-      return selectedSlotData.reduce((total, slot) => total + slot.price, 0);
+      return selectedSlotData.reduce((total, slot) => total + (slot.price ?? 0), 0);
     }
   };
 
@@ -199,6 +222,25 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
   // Handle booking submission
   const handleBooking = () => {
+    // Check if user is authenticated
+    if (!user || !user.id) {
+      // Store current booking data for restoration after sign-in
+      const bookingData = {
+        venueId: venue.id,
+        venueName: venue.venue_name || venue.name,
+        selectedDate,
+        selectedDates,
+        selectedSlots,
+        dailyGuests,
+        dailySpecialRequests,
+        bookingType,
+        returnUrl: window.location.pathname
+      };
+      bookingRestorationService.storePendingBooking(bookingData);
+      setShowSignInModal(true);
+      return;
+    }
+
     if (bookingType === 'daily') {
       if (selectedDates.length === 0) {
         alert('Please select at least one date');
@@ -231,8 +273,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       }
 
       const selectedSlotData = availableSlots.filter(slot => selectedSlots.includes(slot.id));
-      const startTime = selectedSlotData[0]?.start_time;
-      const endTime = selectedSlotData[selectedSlotData.length - 1]?.end_time;
+      const startTime = selectedSlotData[0]?.startTime;
+      const endTime = selectedSlotData[selectedSlotData.length - 1]?.endTime;
 
       const payload = {
         venueId: venue.id,
@@ -256,37 +298,65 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     }
   };
 
-  // Calendar tile styling
+  // Calendar tile styling with distinct classes to prevent conflicts
   const getTileClassName = ({ date }: { date: Date }) => {
     const dateStr = formatDate(date);
     const isToday = dateStr === formatDate(new Date());
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     const isAvailable = availableDates.has(dateStr);
+
     const isSelected = bookingType === 'daily' 
       ? selectedDates.includes(dateStr)
       : selectedDate === dateStr;
 
-    let classes = 'text-sm ';
-
-    if (isPast) {
-      classes += 'opacity-40 cursor-not-allowed ';
-    } else if (isSelected && isAvailable) {
-      classes += 'bg-blue-500 text-white font-bold ';
-    } else if (isAvailable) {
-      classes += 'bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 ';
-    } else {
-      classes += 'bg-red-100 text-red-600 cursor-not-allowed ';
+    // Debug log for specific date (date 27)
+    if (dateStr.includes('2024-12-27')) {
+      console.log('Date 27 debug:', {
+        dateStr,
+        isToday,
+        isPast,
+        isAvailable,
+        isSelected,
+        availableDatesSize: availableDates.size,
+        selectedDate,
+        selectedDates
+      });
     }
 
+    let classes = 'venue-calendar-tile text-sm font-medium ';
+
+    // Handle past dates first
+    if (isPast) {
+      classes += 'venue-calendar-past opacity-40 cursor-not-allowed bg-gray-50 text-gray-400 ';
+    }
+    // Handle unavailable dates (not in availableDates set)
+    else if (!isAvailable) {
+      classes += 'venue-calendar-unavailable bg-red-50 text-red-600 cursor-not-allowed border border-red-200 ';
+    }
+    // Handle selected dates (only if they are available)
+    else if (isSelected && isAvailable) {
+      classes += 'venue-calendar-selected bg-blue-600 text-white font-bold border-2 border-blue-700 shadow-md ';
+    }
+    // Handle available dates (not selected)
+    else if (isAvailable) {
+      classes += 'venue-calendar-available bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 border border-green-200 hover:border-green-300 ';
+    }
+    // Fallback for any edge cases
+    else {
+      classes += 'venue-calendar-default bg-gray-100 text-gray-600 cursor-not-allowed ';
+    }
+
+    // Add today indicator
     if (isToday) {
-      classes += 'ring-2 ring-blue-400 ';
+      classes += 'venue-calendar-today ring-2 ring-blue-400 ring-opacity-50 ';
     }
 
     return classes;
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border p-6 max-w-md mx-auto">
+    <>
+      <div className="bg-white rounded-lg shadow-lg border p-6 max-w-md mx-auto">
       {/* Header */}
       <div className="mb-4 text-center">
         <h3 className="text-lg font-semibold text-gray-800">Book {venue.venue_name || venue.name}</h3>
@@ -324,27 +394,33 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <ReactCalendar
-              onClickDay={handleDateClick}
-              tileClassName={getTileClassName}
-              minDate={new Date()}
-              maxDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year ahead
-            />
+            <div className="venue-calendar-container">
+              <ReactCalendar
+                onClickDay={handleDateClick}
+                tileClassName={getTileClassName}
+                minDate={new Date()}
+                maxDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year ahead
+              />
+            </div>
             
             {/* Calendar Legend */}
             <div className="p-3 border-t">
               <div className="flex flex-wrap gap-2 text-xs">
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-green-100 border"></div>
+                  <div className="w-3 h-3 bg-green-50 border border-green-200"></div>
                   <span>Available</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-blue-500 border"></div>
+                  <div className="w-3 h-3 bg-blue-600 border border-blue-700"></div>
                   <span>Selected</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-red-100 border"></div>
+                  <div className="w-3 h-3 bg-red-50 border border-red-200"></div>
                   <span>Unavailable</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-gray-50 border border-gray-200"></div>
+                  <span>Past</span>
                 </div>
               </div>
             </div>
@@ -386,6 +462,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
               <p className="text-sm text-gray-500 mt-2">Loading slots...</p>
             </div>
+          ) : error ? (
+            <p className="text-sm text-red-500 text-center py-4">Error loading slots: {typeof error === 'string' ? error : (error && (error as any).message) || 'Unknown error'}</p>
           ) : availableSlots.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">
               No slots available for this date
@@ -425,7 +503,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                           : 'opacity-50 cursor-not-allowed bg-gray-100'
                     }`}
                   >
-                    {formatTime(slot.start_time)}
+                    {formatTime(slot.startTime)}
                     <br />
                     ₹{slot.price}
                   </Button>
@@ -531,7 +609,21 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         {bookingType === 'hourly' && 'Select date and time slots for hourly booking'}
         {bookingType === 'both' && 'Flexible booking - select date and optional time slots'}
       </div>
-    </div>
+          </div>
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        onSuccess={() => {
+          setShowSignInModal(false);
+          // After successful sign-in, proceed with booking
+          handleBooking();
+        }}
+        title="Sign In to Book"
+        message="Please sign in to complete your venue booking."
+      />
+    </>
   );
 };
 

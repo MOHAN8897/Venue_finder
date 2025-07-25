@@ -3,7 +3,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
 import React, { useState } from 'react';
-import { ReactCalendar } from 'react-calendar';
+import ReactCalendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
 interface CalendarViewProps {

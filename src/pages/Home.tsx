@@ -76,10 +76,6 @@ const Home: React.FC = () => {
   const venueTypes = [
     { type: 'cricket-box', name: 'Cricket Boxes', icon: '🏏', count: 0 },
     { type: 'farmhouse', name: 'Farmhouses', icon: '🏡', count: 0 },
-    { type: 'banquet-hall', name: 'Banquet Halls', icon: '🎉', count: 0 },
-    { type: 'sports-complex', name: 'Sports Complex', icon: '⚽', count: 0 },
-    { type: 'party-hall', name: 'Party Halls', icon: '🎊', count: 0 },
-    { type: 'conference-room', name: 'Conference Rooms', icon: '💼', count: 0 }
   ];
 
   return (
@@ -199,103 +195,6 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Venues - Mobile Optimized */}
-      <section id="featured-venues-section" className="py-12 sm:py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 sm:mb-12">
-            <div className="mb-4 sm:mb-0">
-              <h2 id="featured-venues-title" className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2 sm:mb-4 px-2">
-                Featured Venues
-              </h2>
-              <p id="featured-venues-description" className="text-base sm:text-lg md:text-xl text-gray-600 px-2">
-                Discover our most popular and highly-rated venues
-              </p>
-            </div>
-            <Link
-              id="view-all-venues-link"
-              to="/venues"
-              className="hidden md:flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors"
-            >
-              <span>View All</span>
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center items-center py-8 sm:py-12">
-              <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600"></div>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8 sm:py-12 px-4">
-              <p className="text-gray-500 text-base sm:text-lg">{error}</p>
-            </div>
-          ) : featuredVenues.length === 0 ? (
-            <div className="text-center py-8 sm:py-12 px-4">
-              <p className="text-gray-500 text-base sm:text-lg">No featured venues available at the moment.</p>
-              <p className="text-gray-400 text-sm mt-2">Check back soon for new venues!</p>
-            </div>
-          ) : (
-            <div id="featured-venues-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-              {featuredVenues.map((venue, index) => (
-                <Link
-                  key={venue.id}
-                  id={`featured-venue-${index}`}
-                  to={`/venue/${venue.id}`}
-                  className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                    <img
-                      src={venue.images && venue.images.length > 0 ? venue.images[0] : 'https://via.placeholder.com/400x300?text=No+Image'}
-                      alt={venue.name}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      style={{ objectPosition: 'center' }}
-                    />
-                    <div className="absolute top-2 sm:top-4 right-2 sm:right-4 bg-white rounded-full px-2 sm:px-3 py-1 flex items-center space-x-1">
-                      <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-xs sm:text-sm font-semibold">{venue.rating.toFixed(1)}</span>
-                    </div>
-                  </div>
-                  <div className="p-4 sm:p-6">
-                    <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-500 mb-2">
-                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span>{venue.city}, {venue.state}</span>
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                      {venue.name}
-                    </h3>
-                    <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 line-clamp-2">
-                      {venue.description}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center space-x-2">
-                        <Users className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
-                        <span className="text-xs sm:text-sm text-gray-600">Up to {venue.capacity} people</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg sm:text-2xl font-bold text-blue-600">₹{venue.price_per_hour}</div>
-                        <div className="text-xs sm:text-sm text-gray-500">per hour</div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <div className="text-center mt-8 sm:mt-12 md:hidden">
-            <Link
-              id="mobile-view-all-venues-link"
-              to="/venues"
-              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 sm:px-8 py-3 rounded-xl hover:bg-blue-700 transition-colors font-semibold min-h-[44px]"
-            >
-              <span>View All Venues</span>
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* Features - Mobile Optimized */}
       <section id="features-section" className="py-12 sm:py-16 md:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -377,14 +276,6 @@ const Home: React.FC = () => {
               List Your Venue
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Payment Test Section - Temporary for debugging */}
-      <section className="py-12 bg-gray-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-center mb-8">Payment Integration Test</h2>
-          <PaymentTest />
         </div>
       </section>
     </div>

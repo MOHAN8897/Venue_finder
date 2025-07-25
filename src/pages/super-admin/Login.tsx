@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { adminLogin } from '../../lib/sessionService';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,26 @@ const SuperAdminLogin: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if super admin is already logged in
+    const isSuperAdminLoggedIn = localStorage.getItem('userRole') === 'administrator' || localStorage.getItem('super_admin_session') === 'true';
+    if (isSuperAdminLoggedIn) {
+      setShowLogoutPrompt(true);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    setShowLogoutPrompt(false);
+  };
+
+  const handleStay = () => {
+    navigate('/super-admin/superadmin-overview', { replace: true });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +52,22 @@ const SuperAdminLogin: React.FC = () => {
     setLoading(false);
     navigate('/super-admin/dashboard', { replace: true });
   };
+
+  if (showLogoutPrompt) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-blue-900 to-purple-900">
+        <div className="w-full max-w-md bg-white/90 rounded-xl shadow-lg p-8 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-indigo-900">Already Logged In</h2>
+          <p className="mb-6 text-gray-700">You are already logged in as Super Admin.<br />
+            Would you like to logout and login again?</p>
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" onClick={handleStay} className="w-32">Stay on Dashboard</Button>
+            <Button variant="destructive" onClick={handleLogout} className="w-32">Logout</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-blue-900 to-purple-900">

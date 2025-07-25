@@ -27,11 +27,6 @@ const menuItems = [
     icon: Building2,
   },
   {
-    title: "Calendar",
-    url: "/manageyourpage-calendar",
-    icon: Calendar,
-  },
-  {
     title: "Analytics",
     url: "/manageyourpage-analytics",
     icon: BarChart3,

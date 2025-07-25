@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Phone, User, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { bookingRestorationService } from '../lib/bookingRestorationService';
 
 const SignIn: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -19,6 +20,16 @@ const SignIn: React.FC = () => {
   // Redirect authenticated users
   useEffect(() => {
     if (!authLoading && user) {
+      // Check if there's pending booking data to restore
+      if (bookingRestorationService.hasPendingBooking()) {
+        const restoredData = bookingRestorationService.restoreBookingData();
+        if (restoredData) {
+          // Navigate to the venue detail page to continue booking
+          navigate(`/venue/${restoredData.venueId}`, { replace: true });
+          return;
+        }
+      }
+      // Default navigation
       navigate('/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);

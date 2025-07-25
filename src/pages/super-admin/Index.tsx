@@ -1,5 +1,5 @@
 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { OverviewPage as SuperadminOverviewPage } from '@/components/dashboard/OverviewPage';
 import { VenuesPage as SuperadminVenuesPage } from '@/components/dashboard/VenuesPage';
@@ -16,6 +16,7 @@ const Index = () => {
     <DashboardLayout>
       <Routes>
         <Route index element={<SuperadminOverviewPage />} />
+        <Route path="dashboard" element={<Navigate to="/super-admin/superadmin-overview" replace />} />
         <Route path="superadmin-overview" element={<SuperadminOverviewPage />} />
         <Route path="superadmin-dashboard" element={<SuperadminOverviewPage />} />
         <Route path="superadmin-dashboard/*" element={<SuperadminOverviewPage />} />

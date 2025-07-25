@@ -78,6 +78,38 @@ export interface UserBooking {
   };
 }
 
+// Ensures a user profile exists for the given Supabase user. Returns the profile or null on error.
+async function ensureUserProfile(supabaseUser) {
+  if (!supabaseUser || !supabaseUser.id) return null;
+  // Try to fetch existing profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', supabaseUser.id)
+    .single();
+  if (profile) return profile;
+  // If not found, upsert (insert or update) profile
+  const { data: upsertedProfile } = await supabase
+    .from('profiles')
+    .upsert([
+      {
+        user_id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        name: supabaseUser.user_metadata?.name || supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0],
+        full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0],
+        profile_image: supabaseUser.user_metadata?.avatar_url || '',
+        avatar_url: supabaseUser.user_metadata?.avatar_url || '',
+        phone: supabaseUser.phone,
+        created_at: supabaseUser.created_at,
+        updated_at: supabaseUser.updated_at || supabaseUser.created_at
+      }
+    ])
+    .select()
+    .single();
+  if (upsertedProfile) return upsertedProfile;
+  return null;
+}
+
 // User Profile Management
 export const userService = {
   // Get current user profile
@@ -633,4 +665,6 @@ export default {
   bookingsService,
   venueOwnerService,
   dashboardService
-}; 
+};
+
+export { ensureUserProfile }; 

@@ -1,0 +1,83 @@
+{
+  "mcpServers": {
+    "supabase-mcp-server": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@alexander-zuev/supabase-mcp-server",
+        "--key",
+        "95633d96-46c3-4ec8-a751-4c0b2c59991f",
+        "--profile",
+        "busy-rat-8K9aUZ"
+      ]
+    },
+    "Supabase MCP Server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@supabase-community/supabase-mcp",
+        "--key",
+        "95633d96-46c3-4ec8-a751-4c0b2c59991f",
+        "--profile",
+        "busy-rat-8K9aUZ"
+      ],
+      "env": {}
+    },
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@upstash/context7-mcp",
+        "--key",
+        "95633d96-46c3-4ec8-a751-4c0b2c59991f",
+        "--profile",
+        "busy-rat-8K9aUZ"
+      ],
+      "env": {}
+    },
+    "Github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/github",
+        "--key",
+        "95633d96-46c3-4ec8-a751-4c0b2c59991f",
+        "--profile",
+        "busy-rat-8K9aUZ"
+      ],
+      "env": {}
+    },
+    "github": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/github",
+        "--key",
+        "95633d96-46c3-4ec8-a751-4c0b2c59991f",
+        "--profile",
+        "busy-rat-8K9aUZ"
+      ]
+    },
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
+    }
+  }
+} 

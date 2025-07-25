@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { sessionService } from '../lib/sessionService';
 import { toast } from 'sonner';
 import { uuidv4 } from '../lib/utils';
+import { ensureUserProfile } from '../lib/userService';
 
 interface SupabaseUser {
   id: string;
@@ -170,19 +171,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Move syncUserStateToLocalStorage inside the effect
     const syncUserStateToLocalStorage = (userData: UserProfile | null) => {
+      // Remove sensitive data storage - only store non-sensitive session info
       if (userData) {
-        localStorage.setItem('venueFinder_user', JSON.stringify(userData));
+        // Only store minimal session info, not full user data
+        localStorage.setItem('venueFinder_session_active', 'true');
         localStorage.setItem('venueFinder_auth_event', JSON.stringify({
           type: 'user_updated',
-          user: userData,
           timestamp: Date.now(),
           tabId: uuidv4()
         }));
       } else {
-        localStorage.removeItem('venueFinder_user');
+        localStorage.removeItem('venueFinder_session_active');
         localStorage.setItem('venueFinder_auth_event', JSON.stringify({
           type: 'user_logout',
-          user: null,
           timestamp: Date.now(),
           tabId: uuidv4()
         }));
@@ -191,47 +192,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const syncUserProfile = async (supabaseUser: SupabaseUser) => {
       try {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', supabaseUser.id)
-          .single();
-        if (error || !profile) {
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .insert([{
-              user_id: supabaseUser.id,
-              email: supabaseUser.email || '',
-              name: supabaseUser.user_metadata?.name || supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0],
-              full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0],
-              profile_image: supabaseUser.user_metadata?.avatar_url || '',
-              avatar_url: supabaseUser.user_metadata?.avatar_url || '',
-              phone: supabaseUser.phone,
-              created_at: supabaseUser.created_at,
-              updated_at: supabaseUser.updated_at || supabaseUser.created_at
-            }])
-            .select()
-            .single();
-          if (newProfile) {
-            setUser(newProfile);
-            setLoading(false);
-            setVersion(v => v + 1);
-            syncUserStateToLocalStorage(newProfile);
-            sessionStorage.setItem('venueFinder_session', JSON.stringify(newProfile));
-          }
-        } else {
+        const profile = await ensureUserProfile(supabaseUser);
+        if (profile) {
           setUser(profile);
           setLoading(false);
           setVersion(v => v + 1);
           syncUserStateToLocalStorage(profile);
-          sessionStorage.setItem('venueFinder_session', JSON.stringify(profile));
+          // Remove sensitive data from sessionStorage
+        } else {
+          setUser(null);
+          setLoading(false);
+          setVersion(v => v + 1);
+          syncUserStateToLocalStorage(null);
+          // Remove sensitive data from sessionStorage
         }
       } catch (error) {
         setUser(null);
         setLoading(false);
         setVersion(v => v + 1);
         syncUserStateToLocalStorage(null);
-        sessionStorage.removeItem('venueFinder_session');
+        // Remove sensitive data from sessionStorage
       }
     };
 
@@ -262,24 +242,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 12000);
 
     const loadUserFromLocalStorage = () => {
-      const savedUser = localStorage.getItem('venueFinder_user');
-      if (savedUser) {
-        try {
-          const userData = JSON.parse(savedUser);
-          setUser(userData);
-          setLoading(false);
-          setVersion(v => v + 1);
-        } catch (error) {
-          setUser(null);
-          setLoading(false);
-          setVersion(v => v + 1);
-        }
-      } else {
-        setUser(null);
-        setLoading(false);
-        setVersion(v => v + 1);
+      // Remove loading sensitive data from localStorage
+      // Instead, rely on Supabase session management
+      const sessionActive = localStorage.getItem('venueFinder_session_active');
+      if (sessionActive === 'true') {
+        // Session is active, but don't load user data from localStorage
+        // Let Supabase handle session validation
+        return true;
       }
+      return false;
     };
+
+    // Call the function to check session on mount
     loadUserFromLocalStorage();
 
     const initializeAuth = async () => {
@@ -289,24 +263,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (didTimeout || !mounted) return;
         if (session?.user) {
           const supabaseUserId = session.user.id;
-          const savedUser = localStorage.getItem('venueFinder_user');
-          if (savedUser) {
-            try {
-              const userData = JSON.parse(savedUser);
-              if (userData.user_id === supabaseUserId) {
-                setUser(userData);
-                setLoading(false);
-                setVersion(v => v + 1);
-                sessionStorage.setItem('venueFinder_session', savedUser);
-                setInitialized(true);
-                if (timeoutId) clearTimeout(timeoutId);
-                return;
-              }
-            } catch (error) {
-              localStorage.removeItem('venueFinder_user');
-              sessionStorage.removeItem('venueFinder_session');
-            }
-          }
+                  // Remove loading sensitive data from localStorage
+        // Rely on Supabase session validation instead
           let profileSynced = false;
           while (!profileSynced && profileSyncAttempts < MAX_PROFILE_SYNC_ATTEMPTS) {
             try {
@@ -321,7 +279,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setLoading(false);
                 setVersion(v => v + 1);
                 syncUserStateToLocalStorage(profile);
-                sessionStorage.setItem('venueFinder_session', JSON.stringify(profile));
+                // Remove sensitive data from sessionStorage
                 profileSynced = true;
                 break;
               }
@@ -334,8 +292,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setLoading(false);
             setVersion(v => v + 1);
             syncUserStateToLocalStorage(null);
-            localStorage.removeItem('venueFinder_user');
-            sessionStorage.removeItem('venueFinder_session');
+            localStorage.removeItem('venueFinder_session_active');
+            // Remove sensitive data from sessionStorage
             await supabase.auth.signOut();
             if (timeoutId) clearTimeout(timeoutId);
             setInitialized(true);
@@ -346,16 +304,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setLoading(false);
           setVersion(v => v + 1);
           syncUserStateToLocalStorage(null);
-          sessionStorage.removeItem('venueFinder_session');
+          // Remove sensitive data from sessionStorage
         }
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             if (!mounted) return;
             if (event === 'SIGNED_IN' && session?.user && !loginInProgress) {
-              const currentUser = JSON.parse(localStorage.getItem('venueFinder_user') || 'null');
-              if (!currentUser || currentUser.user_id !== session.user.id) {
-                await handleUserLogin(session.user as SupabaseUser);
-              }
+              // Remove loading sensitive data from localStorage
+              // Always validate with Supabase session
+              await handleUserLogin(session.user as SupabaseUser);
             } else if (event === 'SIGNED_OUT') {
               await handleUserLogout(user);
               window.location.href = '/signin';
@@ -421,11 +378,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       if (error) return { error: error.message };
       if (data.user) {
-        // The trigger function should automatically create the profile
-        // Wait a moment for the trigger to execute
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Return success without auto sign-in
+        // Wait for the profile row to be created (retry up to 5 times)
+        let profile = null;
+        let attempts = 0;
+        while (!profile && attempts < 5) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', data.user.id)
+            .single();
+          if (profileData) {
+            profile = profileData;
+            break;
+          }
+          attempts++;
+          await new Promise(res => setTimeout(res, 1000));
+        }
+        if (!profile) {
+          toast.error('Your account was created, but your profile could not be initialized. Please try signing in again or contact support.');
+          return { error: 'Profile creation failed. Please try again.' };
+        }
         return { error: null };
       }
       return { error: 'Failed to create user' };
@@ -553,6 +525,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return { error: 'An unexpected error occurred' };
     }
   };
+
+  // Add user-friendly error for missing profile after login
+  useEffect(() => {
+    if (!loading && !user && initialized) {
+      toast.error('Your profile could not be loaded. Please try signing in again or contact support.');
+    }
+  }, [user, loading, initialized]);
 
   const value: AuthContextType & { version: number } = {
       user,

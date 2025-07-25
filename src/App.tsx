@@ -99,12 +99,12 @@ const SuperAdminNotFound = lazy(() => import('./pages/super-admin/NotFound'));
 const SuperAdminLogin = lazy(() => import('./pages/super-admin/Login'));
 const ManageYourPageDashboard = lazy(() => import('./pages/cricket-dashboard/Index'));
 const ManageYourPageVenues = lazy(() => import('./pages/cricket-dashboard/VenuesPage'));
-const ManageYourPageCalendar = lazy(() => import('./pages/cricket-dashboard/CalendarPage'));
 const ManageYourPageAnalytics = lazy(() => import('./pages/cricket-dashboard/AnalyticsPage'));
 const ManageYourPageSettings = lazy(() => import('./pages/cricket-dashboard/SettingsPage'));
 const BrowseVenues = lazy(() => import('./pages/BrowseVenues'));
 const VenueCardDemo = lazy(() => import('./pages/VenueCardDemo'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
+const About = lazy(() => import('./pages/About'));
 
 // Main Layout Component
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -173,6 +173,7 @@ const AppWithTabOverlay: React.FC = () => {
             <Route path="/" element={<MainLayout><Home /></MainLayout>} />
             <Route path="/venues" element={<MainLayout><BrowseVenues /></MainLayout>} />
             <Route path="/venue-card-demo" element={<MainLayout><VenueCardDemo /></MainLayout>} />
+            <Route path="/about" element={<MainLayout><About /></MainLayout>} />
 
             <Route path="/venue/:id" element={<MainLayout><VenueDetail /></MainLayout>} />
             <Route path="/book/:id" element={<MainLayout><VenueBooking /></MainLayout>} />
@@ -245,7 +246,6 @@ const AppWithTabOverlay: React.FC = () => {
             {/* Manage Your Venue Dashboard Routes (unique) */}
             <Route path="/manageyourpage-dashboard" element={<MainLayout><ManageYourPageDashboard /></MainLayout>} />
             <Route path="/manageyourpage-venues" element={<MainLayout><ManageYourPageVenues /></MainLayout>} />
-            <Route path="/manageyourpage-calendar" element={<MainLayout><ManageYourPageCalendar /></MainLayout>} />
             <Route path="/manageyourpage-analytics" element={<MainLayout><ManageYourPageAnalytics /></MainLayout>} />
             <Route path="/manageyourpage-settings" element={<MainLayout><ManageYourPageSettings /></MainLayout>} />
             <Route path="/manageyourpage-boxes" element={<Navigate to="/manageyourpage-venues" replace />} />

@@ -30,7 +30,7 @@ interface RawBooking {
   booking_id?: string;
   id?: string;
   venue_name?: string;
-  venue?: { name?: string };
+  venue?: { venue_name?: string };
   booking_date?: string;
   start_date?: string;
 }
@@ -50,7 +50,7 @@ const RecentBookingItem = React.memo(({ booking }: { booking: RecentBooking }) =
 const FavoriteItem = React.memo(({ favorite }: { favorite: UserFavorite }) => (
   <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between min-h-[60px] sm:min-h-[70px]">
     <div className="flex-1 min-w-0">
-      <div className="font-semibold text-gray-900 text-sm sm:text-base truncate">{favorite.venue?.name || ''}</div>
+      <div className="font-semibold text-gray-900 text-sm sm:text-base truncate">{favorite.venue?.venue_name || ''}</div>
       <div className="text-xs text-gray-500 mt-1 truncate">{favorite.venue?.address || ''}</div>
     </div>
     <Heart className="h-5 w-5 text-red-500 flex-shrink-0 ml-3" />
@@ -135,7 +135,7 @@ const UserDashboard: React.FC = () => {
         ...stats,
         recentBookings: (stats?.recentBookings || []).map((b: RawBooking) => ({
           booking_id: b.booking_id || b.id || '',
-          venue_name: b.venue_name || (b.venue && b.venue.name) || '',
+          venue_name: b.venue_name || (b.venue && b.venue.venue_name) || '',
           booking_date: b.booking_date || b.start_date || ''
         })),
         recentFavorites: stats?.recentFavorites || []

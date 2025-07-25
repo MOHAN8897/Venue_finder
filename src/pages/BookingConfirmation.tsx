@@ -65,7 +65,7 @@ const BookingConfirmationPage: React.FC = () => {
           .from('bookings')
           .select(`*,
             venue:venues(id, name, address, image_urls),
-            payment:payments!bookings_payment_id_fkey(*)
+            payment:payments!booking_id(*)
           `)
           .eq('id', bookingId)
           .single();

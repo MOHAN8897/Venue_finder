@@ -137,7 +137,8 @@ export const venueService = {
         .from('venues')
         .select('*')
         .eq('status', 'approved')
-        .order('rating', { ascending: false })
+        // Use average_rating instead of rating for ordering
+        .order('average_rating', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -207,7 +208,8 @@ export const venueService = {
       query = query.range(from, to);
 
       const { data, error, count } = await query
-        .order('rating', { ascending: false })
+        // Use average_rating instead of rating for ordering
+        .order('average_rating', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) {

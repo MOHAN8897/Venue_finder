@@ -17,6 +17,7 @@ import { venueService, Subvenue } from '@/lib/venueService';
 import { Dialog as Modal, DialogContent as ModalContent } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { VenueAvailabilityController } from '@/components/venue-owner/VenueAvailabilityController';
 
 interface EditVenueDialogProps {
   venue: Venue;
@@ -85,7 +86,9 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
     hourlyRate: venue.pricing?.hourlyRate?.toString() || '',
     peakHourRate: venue.pricing?.peakHourRate?.toString() || '',
     amenities: [...(venue.amenities || [])],
-    status: (venue.status as 'inactive' | 'active' | 'maintenance') || 'inactive',
+    status: (['inactive', 'active', 'maintenance'].includes(venue.status as string)
+      ? (venue.status as 'inactive' | 'active' | 'maintenance')
+      : 'inactive'),
     availability: normalizeAvailability(venue.availability),
     weeklyAvailability: normalizeAvailability((venue as any).weekly_availability), // NEW
     photos: [...(venue.photos || [])],
@@ -104,7 +107,9 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
       hourlyRate: venue.pricing?.hourlyRate?.toString() || '',
       peakHourRate: venue.pricing?.peakHourRate?.toString() || '',
       amenities: [...(venue.amenities || [])],
-      status: (venue.status as 'inactive' | 'active' | 'maintenance') || 'inactive',
+      status: (['inactive', 'active', 'maintenance'].includes(venue.status as string)
+        ? (venue.status as 'inactive' | 'active' | 'maintenance')
+        : 'inactive'),
       availability: normalizeAvailability(venue.availability),
       weeklyAvailability: normalizeAvailability((venue as any).weekly_availability), // NEW
       photos: [...(venue.photos || [])],
@@ -156,6 +161,7 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
 
   // Add state for validation error
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [showAdvancedAvailability, setShowAdvancedAvailability] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,9 +209,9 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
       price_per_hour: parseFloat(formData.hourlyRate) || 0,
       price_per_day: parseFloat(formData.peakHourRate) || 0,
       amenities: formData.amenities,
-      status: ((['inactive', 'active', 'maintenance'].includes(formData.status as string)
-        ? formData.status
-        : 'active') as 'inactive' | 'active' | 'maintenance'),
+      status: (['inactive', 'active', 'maintenance'].includes(formData.status as string)
+        ? (formData.status as 'inactive' | 'active' | 'maintenance')
+        : 'inactive'),
       availability: formData.availability, // keep as object for UI
       weekly_availability: formData.weeklyAvailability, // NEW: jsonb
       photos: [...formData.photos, ...uploadedUrls],
@@ -223,7 +229,9 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
         price_per_hour: updatedVenue.price_per_hour,
         price_per_day: updatedVenue.price_per_day,
         amenities: updatedVenue.amenities,
-        status: updatedVenue.status as 'inactive' | 'active' | 'maintenance',
+        status: (['inactive', 'active', 'maintenance'].includes(updatedVenue.status as string)
+          ? (updatedVenue.status as 'inactive' | 'active' | 'maintenance')
+          : 'inactive'),
         availability: availableDays, // send as text[] to DB (legacy)
         weekly_availability: updatedVenue.weekly_availability, // NEW: jsonb
         photos: updatedVenue.photos,
@@ -560,6 +568,41 @@ export function EditVenueDialog({ venue, open, onOpenChange, onUpdate }: EditVen
               }
             }))}
           />
+          {/* Advanced Availability Button and Description */}
+          <div className="mt-4 border-t pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowAdvancedAvailability(true)}
+              id="btn-advanced-availability"
+            >
+              🕒 Advanced Availability Controls
+            </Button>
+            <p className="text-sm text-muted-foreground mt-2" id="desc-advanced-availability">
+              For blocking specific dates, maintenance schedules, and advanced availability management
+            </p>
+          </div>
+          {/* Advanced Availability Modal/Panel */}
+          {showAdvancedAvailability && (
+            <Dialog open={showAdvancedAvailability} onOpenChange={setShowAdvancedAvailability}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Advanced Availability Controls</DialogTitle>
+                  <DialogDescription>
+                    Manage blockouts, maintenance, and advanced scheduling for this venue.
+                  </DialogDescription>
+                </DialogHeader>
+                <VenueAvailabilityController
+                  venueId={venue.id}
+                  compact={true}
+                />
+                <div className="flex justify-end mt-4">
+                  <Button variant="secondary" onClick={() => setShowAdvancedAvailability(false)}>
+                    Close
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           {formData.bookingType === 'daily' && (
             <div className="text-xs text-muted-foreground mt-1">(Optional: Set weekly availability for info only. Not required for daily booking.)</div>
           )}

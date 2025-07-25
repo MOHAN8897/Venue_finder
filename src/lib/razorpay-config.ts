@@ -4,8 +4,8 @@
 export const razorpayConfig = {
   // Test Mode (Development)
   test: {
-    keyId: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_HvibTBowLV94vj',
-    keySecret: import.meta.env.VITE_RAZORPAY_KEY_SECRET || '5ZVnvIqZO3eCRlfOnQAqHEux',
+    keyId: import.meta.env.VITE_RAZORPAY_KEY_ID || '',
+    keySecret: import.meta.env.VITE_RAZORPAY_KEY_SECRET || '',
     environment: 'test'
   },
   

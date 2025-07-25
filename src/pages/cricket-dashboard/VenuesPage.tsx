@@ -5,13 +5,15 @@ import { AddVenueDialog } from "@/components/cricket-dashboard/AddBoxDialog";
 import { GoogleMapView } from "@/components/cricket-dashboard/GoogleMapView";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Grid3X3, Map, Building2, Filter, Search } from "lucide-react";
+import { Plus, Grid3X3, Map, Building2, Filter, Search, Calendar, Clock } from "lucide-react";
 import { useState, useEffect, useContext } from "react";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { AuthContext } from "@/context/AuthContext";
 import { VenueDetailsModal } from '@/components/dashboard/VenueDetailsModal';
 import { Input } from "@/components/ui/input";
+import { VenueAvailabilityController } from "@/components/venue-owner/VenueAvailabilityController";
+import { BookingManagementDashboard } from "@/components/venue-owner/BookingManagementDashboard";
 
 export interface Venue {
   id: string;
@@ -50,6 +52,8 @@ const VenuesPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [activeTab, setActiveTab] = useState('venues'); // Tab state for new dashboard
+  const [selectedVenueForManagement, setSelectedVenueForManagement] = useState<string>(''); // Selected venue for availability/bookings
   const { user } = useContext(AuthContext)!;
 
   // Fetch venues for the logged-in owner
@@ -95,9 +99,13 @@ const VenuesPage = () => {
         featured_image: venue.featured_image,
       }));
       setVenues(mappedVenues);
+      // Set first venue as default selection for management tabs
+      if (mappedVenues.length > 0 && !selectedVenueForManagement) {
+        setSelectedVenueForManagement(mappedVenues[0].id);
+      }
     };
     fetchVenues();
-  }, [user]);
+  }, [user, selectedVenueForManagement]);
 
   const handleAddVenue = (newVenue: Omit<Venue, "id" | "stats">) => {
     const venue: Venue = {
@@ -126,6 +134,20 @@ const VenuesPage = () => {
     }
   };
 
+  // Quick action to manage venue availability
+  const handleManageVenueAvailability = (venueId: string) => {
+    setSelectedVenueForManagement(venueId);
+    setActiveTab('availability');
+    toast.success(`Switched to managing ${venues.find(v => v.id === venueId)?.name} availability`);
+  };
+
+  // Quick action to manage venue bookings
+  const handleManageVenueBookings = (venueId: string) => {
+    setSelectedVenueForManagement(venueId);
+    setActiveTab('bookings');
+    toast.success(`Switched to managing ${venues.find(v => v.id === venueId)?.name} bookings`);
+  };
+
   // Filter venues based on search and status
   const filteredVenues = venues.filter(venue => {
     const matchesSearch = venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -133,6 +155,9 @@ const VenuesPage = () => {
     const matchesStatus = statusFilter === 'all' || venue.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Get selected venue name for display
+  const selectedVenueName = venues.find(v => v.id === selectedVenueForManagement)?.name || 'No venue selected';
 
   if (venues.length === 0) {
     return (
@@ -192,7 +217,12 @@ const VenuesPage = () => {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">My Venues</h1>
             <p className="text-muted-foreground text-sm sm:text-base">
-              Managing {venues.length} venue{venues.length !== 1 ? 's' : ''}
+              {activeTab === 'venues' 
+                ? `Managing ${venues.length} venue${venues.length !== 1 ? 's' : ''} • Dashboard`
+                : activeTab === 'availability' 
+                  ? `Availability Control • ${selectedVenueName}`
+                  : `Booking Management • ${selectedVenueName}`
+              }
             </p>
           </div>
           <Button 
@@ -206,7 +236,29 @@ const VenuesPage = () => {
           </Button>
         </div>
 
-        {/* Search and Filters - Mobile Optimized */}
+        {/* Tabbed Interface */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="venues" id="tab-venues" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              <span className="hidden sm:inline">My Venues</span>
+              <span className="sm:hidden">Venues</span>
+            </TabsTrigger>
+            <TabsTrigger value="availability" id="tab-availability" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Availability Control</span>
+              <span className="sm:hidden">Schedule</span>
+            </TabsTrigger>
+            <TabsTrigger value="bookings" id="tab-bookings" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Bookings</span>
+              <span className="sm:hidden">Bookings</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* My Venues Tab (Existing Content) */}
+          <TabsContent value="venues" id="content-venues" className="space-y-4 mt-6">
+            {/* Search and Filters - Mobile Optimized */}
         <div className="space-y-3 sm:space-y-4">
           {/* Search Bar */}
           <div className="relative">
@@ -295,6 +347,112 @@ const VenuesPage = () => {
             </div>
           )}
         </div>
+
+          </TabsContent>
+
+          {/* Availability Control Tab */}
+          <TabsContent value="availability" id="content-availability" className="mt-6">
+            {venues.length > 0 ? (
+              <div className="space-y-4">
+                {/* Venue Selector for Management */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Managing Availability For:</p>
+                      <p className="text-sm text-muted-foreground">Select venue to view and manage its availability schedule</p>
+                    </div>
+                  </div>
+                  <div className="min-w-[200px]">
+                    <select
+                      value={selectedVenueForManagement}
+                      onChange={(e) => setSelectedVenueForManagement(e.target.value)}
+                      className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      id="venue-selector-availability"
+                    >
+                      {venues.map((venue) => (
+                        <option key={venue.id} value={venue.id}>
+                          {venue.name} - {venue.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Availability Controller */}
+                <VenueAvailabilityController 
+                  venueId={selectedVenueForManagement} 
+                  venues={venues}
+                  compact={false}
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Add a venue first to manage availability.</p>
+                <Button 
+                  onClick={() => {
+                    setActiveTab('venues');
+                    setIsAddDialogOpen(true);
+                  }}
+                  className="mt-4"
+                >
+                  Add Your First Venue
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Bookings Tab */}
+          <TabsContent value="bookings" id="content-bookings" className="mt-6">
+            {venues.length > 0 ? (
+              <div className="space-y-4">
+                {/* Venue Selector for Bookings */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Managing Bookings For:</p>
+                      <p className="text-sm text-muted-foreground">Select venue to view and manage its bookings</p>
+                    </div>
+                  </div>
+                  <div className="min-w-[200px]">
+                    <select
+                      value={selectedVenueForManagement}
+                      onChange={(e) => setSelectedVenueForManagement(e.target.value)}
+                      className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      id="venue-selector-bookings"
+                    >
+                      {venues.map((venue) => (
+                        <option key={venue.id} value={venue.id}>
+                          {venue.name} - {venue.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Booking Management Dashboard */}
+                <BookingManagementDashboard 
+                  venueId={selectedVenueForManagement} 
+                  key={selectedVenueForManagement}
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Add a venue first to manage bookings.</p>
+                <Button 
+                  onClick={() => {
+                    setActiveTab('venues');
+                    setIsAddDialogOpen(true);
+                  }}
+                  className="mt-4"
+                >
+                  Add Your First Venue
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Dialogs */}
         <AddVenueDialog

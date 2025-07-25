@@ -1,3 +1,7 @@
+// SlotBasedBookingCalendar.tsx
+// This component provides a slot-based booking calendar for venues with hourly or flexible booking types.
+// It handles date and slot availability, user selection, and booking submission.
+
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Clock, Users, DollarSign, Check, X, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,17 +18,19 @@ import { supabase } from '@/lib/supabase';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 
+// Props for the SlotBasedBookingCalendar component
 interface SlotBasedBookingCalendarProps {
-  venueId: string;
-  venueName: string;
-  pricePerHour: number;
-  capacity?: number;
-  rating?: number;
-  reviewCount?: number;
-  onBookingSubmit?: (bookingData: BookingData) => Promise<string | void>;
-  weeklyAvailability?: Record<string, { start: string; end: string; available: boolean }>;
+  venueId: string; // Venue identifier
+  venueName: string; // Venue display name
+  pricePerHour: number; // Price per hour for booking
+  capacity?: number; // Max guest capacity
+  rating?: number; // Venue rating
+  reviewCount?: number; // Number of reviews
+  onBookingSubmit?: (bookingData: BookingData) => Promise<string | void>; // Callback for booking submission
+  weeklyAvailability?: Record<string, { start: string; end: string; available: boolean }>; // Weekly schedule
 }
 
+// Booking data structure for submission
 interface BookingData {
   date: Date;
   selectedSlots: TimeSlot[];
@@ -33,6 +39,7 @@ interface BookingData {
   totalPrice: number;
 }
 
+// Time slot structure
 interface TimeSlot {
   id: string;
   time: string;
@@ -41,12 +48,14 @@ interface TimeSlot {
   selected: boolean;
 }
 
-const PLATFORM_FEE = 35;
+const PLATFORM_FEE = 35; // Flat platform fee per booking
 
 // Helper to fetch the current user's profile and return profiles.id
 const getCurrentProfileId = async () => {
+  // Fetch the authenticated user from Supabase
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No authenticated user');
+  // Fetch the user's profile from the database
   const { data, error } = await supabase
     .from('profiles')
     .select('id')
@@ -56,7 +65,7 @@ const getCurrentProfileId = async () => {
   return data.id;
 };
 
-// All slot and date availability is now fetched from the backend. No dummy data.
+// Main component for slot-based booking
 const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
   venueId,
   venueName,
@@ -67,25 +76,38 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
   onBookingSubmit,
   weeklyAvailability = {}
 }) => {
+  // State for selected date in the calendar
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  // State for all available slots for the selected date
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  // State for user-selected slots
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
+  // State for guest count
   const [guests, setGuests] = useState<number>(1);
+  // Loading state for booking submission
   const [isLoading, setIsLoading] = useState(false);
+  // Loading state for fetching slots
   const [fetchingSlots, setFetchingSlots] = useState(false);
+  // List of available dates (YYYY-MM-DD)
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  // Map of date to status: 'available', 'partial', or 'booked'
   const [dateStatusMap, setDateStatusMap] = useState<Record<string, 'available' | 'partial' | 'booked'>>({});
+  // Slot preview for tooltip on hover
   const [slotPreview, setSlotPreview] = useState<{date: string, slots: string[]} | null>(null);
+  // Navigation hook for redirecting after booking
   const navigate = useNavigate();
+  // Error state for displaying errors
   const [error, setError] = useState<string | null>(null);
 
-  // Enhanced: Fetch all slots for the next 30 days and classify each date
+  // Fetch all slot statuses for the next 30 days and classify each date
   useEffect(() => {
+    // Fetches slot availability for each date in the next 30 days
     const fetchDateStatuses = async () => {
       if (!venueId) return;
       const today = new Date();
       const end = new Date();
       end.setDate(today.getDate() + 30);
+      // Query venue_slots for slot availability by date
       const { data, error } = await supabase
         .from('venue_slots')
         .select('date, available, start_time')
@@ -97,7 +119,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
         setDateStatusMap({});
         return;
       }
-      // Group by date
+      // Group slots by date and count available/total
       const byDate: Record<string, { total: number, available: number, slots: string[] }> = {};
       (data || []).forEach((row: any) => {
         if (!byDate[row.date]) byDate[row.date] = { total: 0, available: 0, slots: [] };
@@ -107,16 +129,17 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           byDate[row.date].slots.push(row.start_time);
         }
       });
+      // Build status map and available dates list
       const availableDates: string[] = [];
       const statusMap: Record<string, 'available' | 'partial' | 'booked'> = {};
       Object.entries(byDate).forEach(([date, info]) => {
         if (info.available === 0) {
-          statusMap[date] = 'booked';
+          statusMap[date] = 'booked'; // All slots booked
         } else if (info.available === info.total) {
-          statusMap[date] = 'available';
+          statusMap[date] = 'available'; // All slots available
           availableDates.push(date);
         } else {
-          statusMap[date] = 'partial';
+          statusMap[date] = 'partial'; // Some slots available
           availableDates.push(date);
         }
       });
@@ -126,12 +149,14 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
     fetchDateStatuses();
   }, [venueId]);
 
-  // Fetch available slots from Supabase for the selected venue and date
+  // Fetch available slots for the selected date from Supabase
   useEffect(() => {
+    // Fetches all slots for the selected date
     const fetchSlots = async () => {
       if (!venueId || !selectedDate) return;
       setFetchingSlots(true);
       try {
+        // Query venue_slots for slots on the selected date
         const { data, error } = await supabase
           .from('venue_slots')
           .select('id, time: start_time, available, price')
@@ -159,10 +184,12 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
     fetchSlots();
   }, [venueId, selectedDate, pricePerHour]);
 
-  // Handle slot selection/deselection
+  // Handle user toggling a slot (select/deselect)
   const handleSlotToggle = (slotTime: string) => {
+    // Find the index of the slot to toggle
     const slotIndex = availableSlots.findIndex(slot => slot.time === slotTime);
     if (slotIndex === -1) return;
+    // Find indices of currently selected slots
     const selectedIndices = availableSlots
       .map((slot, idx) => (slot.selected ? idx : -1))
       .filter(idx => idx !== -1);
@@ -192,13 +219,14 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
     }
   };
 
-  // Calculate total price (venue only)
+  // Calculate the total venue price (selected slots * price per hour)
   const calculateVenuePrice = (): number => selectedSlots.length * pricePerHour;
-  // Calculate total (venue + platform fee)
+  // Calculate the total price (venue + platform fee)
   const calculateTotal = (): number => calculateVenuePrice() + PLATFORM_FEE;
 
-  // Handle booking submission
+  // Handle booking submission (calls parent callback and navigates to payment)
   const handleBookingSubmit = async () => {
+    // Validate that a date and at least one slot are selected
     if (!selectedDate) {
       setError('Please select a date.');
       return;
@@ -219,6 +247,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
     try {
       setError(null);
       if (onBookingSubmit) {
+        // Call the parent callback with booking data
         const bookingId = await onBookingSubmit({
           date: selectedDate,
           selectedSlots,
@@ -238,25 +267,33 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
     }
   };
 
-  // Clear all selections
+  // Clear all selected slots
   const clearSelections = () => {
     setSelectedSlots([]);
     const updatedSlots = availableSlots.map(slot => ({ ...slot, selected: false }));
-    // Update the slots state if needed
+    // Optionally update the slots state if needed
   };
 
-  // Get selected time range
+  // Get the selected time range as a string (e.g., "10:00 - 12:00")
   const getSelectedTimeRange = (): string => {
     if (selectedSlots.length === 0) return '';
-    
     const sortedSlots = selectedSlots.sort((a, b) => a.time.localeCompare(b.time));
     const startTime = sortedSlots[0].time;
     const endTime = sortedSlots[sortedSlots.length - 1].time;
     const endHour = parseInt(endTime) + 1;
-    
     return `${startTime} - ${endHour.toString().padStart(2, '0')}:00`;
   };
 
+  // Helper to check if a date is available for selection
+  const isDateAvailable = (date: Date) => {
+    const ymd = date.toISOString().split('T')[0];
+    const day = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    if (Object.keys(weeklyAvailability).length > 0 && !weeklyAvailability[day]?.available) return false;
+    if (dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd]) return false;
+    return true;
+  };
+
+  // --- Render ---
   return (
     <Card className="w-full max-w-md mx-auto lg:max-w-none">
       <CardHeader>
@@ -267,7 +304,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {/* Venue Info */}
+        {/* Venue Info Section */}
         <div className="space-y-2">
           <h3 className="font-semibold text-lg">{venueName}</h3>
           <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -286,7 +323,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           </div>
         </div>
 
-        {/* Pricing */}
+        {/* Pricing Section */}
         <div className="bg-gray-50 p-4 rounded-lg">
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-green-600">
@@ -297,7 +334,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           <p className="text-sm text-gray-600 mt-1">Select multiple time slots as needed</p>
         </div>
 
-        {/* Date Selection */}
+        {/* Date Selection Calendar Section */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">Select Date</label>
           <Popover>
@@ -311,10 +348,16 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
+              {/* Calendar component for date selection */}
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={setSelectedDate}
+                onSelect={date => {
+                  // Only allow selecting available dates
+                  if (date && isDateAvailable(date)) {
+                    setSelectedDate(date);
+                  }
+                }}
                 initialFocus
                 modifiers={{
                   available: Object.keys(dateStatusMap).filter(date => dateStatusMap[date] === 'available').map(date => new Date(date)),
@@ -327,14 +370,15 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
                   booked: 'bg-red-200 text-red-900 font-bold border-red-400 border-2 opacity-60',
                 }}
                 disabled={date => {
+                  // Disable dates not available in weeklyAvailability or fully booked
                   const ymd = date.toISOString().split('T')[0];
                   const day = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-                  // Block if not available in weeklyAvailability
                   if (Object.keys(weeklyAvailability).length > 0 && !weeklyAvailability[day]?.available) return true;
-                  // Block if fully booked or not in dateStatusMap
-                  return dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd];
+                  if (dateStatusMap[ymd] === 'booked' || !dateStatusMap[ymd]) return true;
+                  return false;
                 }}
                 onDayMouseEnter={date => {
+                  // Show slot preview on hover
                   const ymd = date.toISOString().split('T')[0];
                   if (dateStatusMap[ymd]) {
                     setSlotPreview({ date: ymd, slots: dateStatusMap[ymd] === 'available' ? [] : dateStatusMap[ymd] === 'partial' ? [] : [] });
@@ -348,8 +392,8 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           </Popover>
         </div>
 
-        {/* Time Slot Selection */}
-        {selectedDate && (
+        {/* Time Slot Selection Section (only if date is available) */}
+        {selectedDate && isDateAvailable(selectedDate) && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">
@@ -375,6 +419,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
               </div>
             )}
 
+            {/* Slot buttons grid */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
               {availableSlots.map((slot) => (
                 <Button
@@ -393,6 +438,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
               ))}
             </div>
             
+            {/* Message if no slots selected */}
             {selectedSlots.length === 0 && (
               <div className="text-center py-4">
                 <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -402,7 +448,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           </div>
         )}
 
-        {/* Selected Slots Summary */}
+        {/* Selected Slots Summary Section */}
         {selectedSlots.length > 0 && (
           <div className="bg-blue-50 p-4 rounded-lg space-y-3">
             <h4 className="font-semibold text-blue-900">Selected Slots</h4>
@@ -424,7 +470,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           </div>
         )}
 
-        {/* Guest Count */}
+        {/* Guest Count Section */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">Number of Guests</label>
           <div className="flex items-center gap-3">
@@ -453,7 +499,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           )}
         </div>
 
-        {/* Booking Summary */}
+        {/* Booking Summary Section */}
         {selectedSlots.length > 0 && (
           <div className="bg-green-50 p-4 rounded-lg space-y-2">
             <h4 className="font-semibold text-green-900">Booking Summary</h4>
@@ -490,7 +536,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           </div>
         )}
 
-        {/* Book Now Button */}
+        {/* Book Now Button Section */}
         <Button
           onClick={handleBookingSubmit}
           disabled={!selectedDate || selectedSlots.length === 0 || isLoading}
@@ -506,7 +552,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           )}
         </Button>
 
-        {/* Additional Info */}
+        {/* Additional Info Section */}
         <div className="text-xs text-gray-500 text-center space-y-1">
           <p>• Select multiple time slots for flexible booking</p>
           <p>• Free cancellation up to 24 hours before booking</p>
@@ -514,7 +560,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
           <p>• Secure payment processing</p>
         </div>
 
-        {/* Slot preview tooltip */}
+        {/* Slot preview tooltip on calendar hover */}
         {slotPreview && (
           <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
             {slotPreview.slots.length > 0
@@ -522,7 +568,7 @@ const SlotBasedBookingCalendar: React.FC<SlotBasedBookingCalendarProps> = ({
               : 'All slots booked'}
           </div>
         )}
-        {/* Legend */}
+        {/* Legend for calendar color codes */}
         <div className="flex gap-4 mt-2 text-xs items-center">
           <span className="inline-block w-4 h-4 bg-blue-200 border-blue-400 border-2 rounded mr-1"></span> Available
           <span className="inline-block w-4 h-4 bg-yellow-200 border-yellow-400 border-2 rounded mr-1"></span> Partially Booked

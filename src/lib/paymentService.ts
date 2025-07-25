@@ -14,6 +14,9 @@ export interface BookingData {
   venueAmount: number; // Amount in paise
   bookingType: 'hourly' | 'daily';
   slot_ids: string[]; // Array of slot UUIDs
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
 }
 
 export interface PaymentData {
@@ -50,13 +53,16 @@ export interface BookingWithPayment {
 
 // Create booking with payment using database function
 export const createBookingWithPayment = async (bookingData: BookingData): Promise<string> => {
-  // Ensure slot_ids is not empty
-  if (!bookingData.slot_ids || bookingData.slot_ids.length === 0) {
+  // Only require slot_ids for hourly bookings
+  if (
+    bookingData.bookingType === 'hourly' &&
+    (!bookingData.slot_ids || bookingData.slot_ids.length === 0)
+  ) {
     throw new Error('No slots selected for booking.');
   }
+  // For daily bookings, slot_ids can be empty
   try {
     const { data, error } = await supabase.rpc('create_booking_with_payment', {
-      p_user_id: bookingData.userId,
       p_venue_id: bookingData.venueId,
       p_event_date: bookingData.eventDate,
       p_start_time: bookingData.startTime,
@@ -68,7 +74,10 @@ export const createBookingWithPayment = async (bookingData: BookingData): Promis
       p_total_amount: calculateTotalAmount(bookingData.venueAmount),
       p_razorpay_order_id: null, // Will be set after order creation
       p_booking_type: bookingData.bookingType,
-      p_slot_ids: bookingData.slot_ids // Pass slot_ids to backend
+      p_slot_ids: bookingData.slot_ids, // Pass slot_ids to backend
+      p_customer_name: bookingData.customer_name || null,
+      p_customer_email: bookingData.customer_email || null,
+      p_customer_phone: bookingData.customer_phone || null,
     });
 
     if (error) {
